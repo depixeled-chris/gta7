@@ -138,6 +138,15 @@ let stars = 0;
 let sinceCrime = 0;
 let prevRunOver = 0;
 
+// Busted: a chasing cop pins you slow for long enough → arrested, game resets.
+const BUST_RADIUS = 7; // a cop this close...
+const BUST_SPEED = 5; // ...while you're slower than this (m/s)...
+const BUST_FILL_TIME = 1.8; // ...for this long → BUSTED
+const BUSTED_TIME = 3; // seconds the BUSTED screen holds before respawn
+let busted = false;
+let bustedTimer = 0;
+let bustFill = 0;
+
 const clampToCity = (p: { x: number; z: number }): void => {
   const b = city.half - 2;
   p.x = Math.max(-b, Math.min(b, p.x));
@@ -200,14 +209,31 @@ function enterWasted(): void {
 
 function respawn(): void {
   wasted = false;
+  busted = false;
+  bustFill = 0;
   health = MAX_HEALTH;
   pedContact = false;
-  heat = 0; // getting WASTED clears your wanted level
+  heat = 0; // getting WASTED/BUSTED clears your wanted level
   sinceCrime = 0;
   mode = 'foot';
   player.x = city.center.x;
   player.z = city.center.z + 6;
   player.heading = 0;
+}
+
+function enterBusted(): void {
+  busted = true;
+  bustedTimer = BUSTED_TIME;
+  bustFill = 0;
+}
+
+/** A chasing cop pinning you slow fills the bust meter; sustained → BUSTED. */
+function updateBusted(dt: number): void {
+  const t = chaseTarget();
+  const speed = mode === 'driving' ? Math.abs(vehicles.playerForwardSpeed()) : player.speed;
+  const pinned = vehicles.nearestPoliceDistance(t.x, t.z) < BUST_RADIUS && speed < BUST_SPEED;
+  bustFill = pinned ? bustFill + dt : Math.max(0, bustFill - 2 * dt); // fills slow, clears fast
+  if (bustFill >= BUST_FILL_TIME) enterBusted();
 }
 
 /** Active player pose + velocity the police intercept (the car, or the avatar on foot). */
@@ -260,11 +286,12 @@ const runOverQuery = (x: number, z: number) => vehicles.pedestrianImpact(x, z, t
 function update(dt: number): void {
   player.savePrev();
 
-  if (wasted) {
-    wastedTimer -= dt;
+  if (wasted || busted) {
+    if (wasted) wastedTimer -= dt;
+    else bustedTimer -= dt;
     vehicles.update(city, dt, null, null);
     peds.update(city, dt, runOverQuery, null);
-    if (wastedTimer <= 0) respawn();
+    if ((wasted && wastedTimer <= 0) || (busted && bustedTimer <= 0)) respawn();
     controls.endFrame();
     return;
   }
@@ -306,7 +333,10 @@ function update(dt: number): void {
     }
   }
 
-  peds.update(city, dt, runOverQuery, mode === 'foot' ? { x: player.x, z: player.z } : null);
+  updateBusted(dt);
+  // Pedestrians fear the CAR only (not the player on foot): proximity, or a fast
+  // car on a vector to hit them. Threat carries velocity for the vector trigger.
+  peds.update(city, dt, runOverQuery, mode === 'driving' ? chaseTarget() : null);
   controls.endFrame();
 }
 
@@ -365,6 +395,7 @@ function render(alpha: number, frameDt: number): void {
   hud.setRunOverCount(peds.runOverCount);
   hud.setRadio(radio ? radio.label() : '📻 OFF');
   hud.setWanted(stars);
+  hud.setBusted(busted);
 
   const driving = mode === 'driving';
   if (driving) {
@@ -392,6 +423,7 @@ declare global {
       readonly mode: Mode;
       readonly health: number;
       readonly wasted: boolean;
+      readonly busted: boolean;
       readonly runOverCount: number;
       readonly radioLabel: string;
       readonly wanted: number;
@@ -412,6 +444,9 @@ window.__game = {
   },
   get wasted() {
     return wasted;
+  },
+  get busted() {
+    return busted;
   },
   get runOverCount() {
     return peds.runOverCount;

@@ -44,8 +44,12 @@ const GIB_SPEED = 9; // m/s (~32 km/h): at/above this they explode; between, jus
 const SHOVE_TIME = 1.6; // seconds knocked over before getting back up
 const GIB_TIME = 3.5; // seconds gibbed before respawning elsewhere
 const GRAVITY = 18;
-const FEAR_RADIUS = 9; // how close the on-foot player must be to scare a pedestrian
 const FLEE_SPEED = 5; // scared pedestrians scurry faster than they stroll
+// Fear triggers off the active player (on foot OR in a car):
+const NEAR_RADIUS = 5.5; // proximity: anything this close scares them (walk-up or slow creep)
+const PATH_LOOK = 18; // vector: a fast threat bearing down from up to this far
+const PATH_WIDTH = 3.6; // ...within this lateral corridor of its heading (its sweep)
+const VECTOR_SPEED = 8; // ...and moving at least this fast (a car, not a stroll)
 
 /**
  * Wandering pedestrians with a three-state life: walking, shoved (clipped at
@@ -81,7 +85,12 @@ export class Pedestrians {
     }
   }
 
-  update(city: City, dt: number, impactAt?: ImpactQuery, threat?: { x: number; z: number } | null): void {
+  update(
+    city: City,
+    dt: number,
+    impactAt?: ImpactQuery,
+    threat?: { x: number; z: number; vx: number; vz: number } | null,
+  ): void {
     for (const ped of this.peds) {
       ped.px = ped.x;
       ped.pz = ped.z;
@@ -99,20 +108,39 @@ export class Pedestrians {
         continue;
       }
 
-      // Panic if the on-foot player gets close: flee directly away (and tremble,
-      // in render). Otherwise wander.
+      // Panic from the active player (on foot OR a car): close proximity, or a
+      // fast threat bearing down on a path to hit them. Flee away (proximity) or
+      // dodge sideways out of the path (vector). Tremble is in render().
       ped.scared = false;
       if (threat) {
-        const ax = ped.x - threat.x;
-        const az = ped.z - threat.z;
-        const fd = Math.hypot(ax, az);
-        if (fd < FEAR_RADIUS) {
-          ped.scared = true;
-          const ux = fd > 1e-3 ? ax / fd : 1;
-          const uz = fd > 1e-3 ? az / fd : 0;
-          ped.heading = Math.atan2(-uz, ux); // face the way they're bolting
-          ped.x += ux * FLEE_SPEED * dt;
-          ped.z += uz * FLEE_SPEED * dt;
+        const dx = ped.x - threat.x;
+        const dz = ped.z - threat.z;
+        const dist = Math.hypot(dx, dz);
+        let fx = 0;
+        let fz = 0;
+        if (dist < NEAR_RADIUS) {
+          ped.scared = true; // proximity: bolt straight away
+          fx = dist > 1e-3 ? dx / dist : 1;
+          fz = dist > 1e-3 ? dz / dist : 0;
+        } else {
+          const ts = Math.hypot(threat.vx, threat.vz);
+          if (ts > VECTOR_SPEED && dist < PATH_LOOK) {
+            const tnx = threat.vx / ts;
+            const tnz = threat.vz / ts;
+            const ahead = dx * tnx + dz * tnz; // ped in front of the threat?
+            const lateral = dx * tnz - dz * tnx; // signed offset from its path
+            if (ahead > 0 && Math.abs(lateral) < PATH_WIDTH) {
+              ped.scared = true; // vector: dodge to the side it's already on
+              const side = lateral >= 0 ? 1 : -1;
+              fx = tnz * side;
+              fz = -tnx * side;
+            }
+          }
+        }
+        if (ped.scared) {
+          ped.heading = Math.atan2(-fz, fx);
+          ped.x += fx * FLEE_SPEED * dt;
+          ped.z += fz * FLEE_SPEED * dt;
         }
       }
 

@@ -387,6 +387,17 @@ export class Vehicles {
     return this.cars.filter((c) => c.role === 'police' && c.active).length;
   }
 
+  /** Distance to the nearest active police car from (x,z), or Infinity if none. */
+  nearestPoliceDistance(x: number, z: number): number {
+    let best = Infinity;
+    for (const c of this.cars) {
+      if (c.role !== 'police' || !c.active) continue;
+      const d = Math.hypot(c.x - x, c.z - z);
+      if (d < best) best = d;
+    }
+    return best;
+  }
+
   private collide(city: City): void {
     for (const car of this.cars) {
       if (!car.active) continue;

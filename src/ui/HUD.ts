@@ -18,6 +18,7 @@ export class HUD {
   private readonly toWorld: number;
   private readonly healthFill: HTMLElement;
   private readonly wastedEl: HTMLElement;
+  private readonly bustedEl: HTMLElement;
   private readonly scoreEl: HTMLElement;
   private readonly radioEl: HTMLElement;
   private readonly wantedEl: HTMLElement;
@@ -80,14 +81,21 @@ export class HUD {
     this.radioEl.textContent = '📻 OFF';
     root.appendChild(this.radioEl);
 
+    const bigText =
+      'position:absolute;inset:0;display:none;align-items:center;justify-content:center;' +
+      'font-size:13vw;font-weight:800;letter-spacing:6px;' +
+      'text-shadow:0 4px 24px #000;font-family:Georgia,"Times New Roman",serif;';
     this.wastedEl = document.createElement('div');
     this.wastedEl.textContent = 'WASTED';
     this.wastedEl.style.cssText =
-      'position:absolute;inset:0;display:none;align-items:center;justify-content:center;' +
-      'font-size:13vw;font-weight:800;letter-spacing:6px;color:#c0202a;' +
-      'background:radial-gradient(circle,rgba(40,0,0,.35),rgba(0,0,0,.85));' +
-      'text-shadow:0 4px 24px #000;font-family:Georgia,"Times New Roman",serif;';
+      bigText + 'color:#c0202a;background:radial-gradient(circle,rgba(40,0,0,.35),rgba(0,0,0,.85));';
     root.appendChild(this.wastedEl);
+
+    this.bustedEl = document.createElement('div');
+    this.bustedEl.textContent = 'BUSTED';
+    this.bustedEl.style.cssText =
+      bigText + 'color:#3aa0ff;background:radial-gradient(circle,rgba(0,16,40,.4),rgba(0,0,0,.85));';
+    root.appendChild(this.bustedEl);
 
     const help = document.createElement('div');
     help.innerHTML =
@@ -206,5 +214,9 @@ export class HUD {
 
   setWanted(stars: number): void {
     this.wantedEl.textContent = stars > 0 ? '★'.repeat(stars) : '';
+  }
+
+  setBusted(on: boolean): void {
+    this.bustedEl.style.display = on ? 'flex' : 'none';
   }
 }

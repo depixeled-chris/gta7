@@ -245,11 +245,11 @@ try {
     const p = g.vehicles.cars[g.vehicles.playerIndex];
     const ped = g.peds.peds[0];
     ped.state = 'walk'; ped.y = 0; ped.tumble = 0; ped.group.visible = true;
-    ped.x = p.x + 3; ped.z = p.z;
-    p.heading = 0; p.vx = 6; p.vz = 0; // slow: between SHOVE and GIB, no throttle
+    ped.x = p.x + 2; ped.z = p.z; // already in contact range (it'd otherwise dodge)
+    p.heading = 0; p.vx = 5; p.vz = 0; // slow: between SHOVE and GIB
     return { before: g.runOverCount };
   });
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(200);
   const bumped = await page.evaluate(() => ({
     count: window.__game.runOverCount,
     state: window.__game.peds.peds[0].state,
@@ -301,34 +301,68 @@ try {
     JSON.stringify(heat),
   );
 
-  // --- 9. Pedestrians panic and flee when you approach on foot.
+  // --- 9. A car bearing down scares pedestrians (vector trigger).
   await reset();
-  await page.keyboard.press('KeyF'); // exit the car -> on foot
-  await page.waitForTimeout(300);
-  const setup = await page.evaluate(() => {
+  await page.evaluate(() => {
+    const g = window.__game;
+    const p = g.vehicles.cars[g.vehicles.playerIndex];
+    const ped = g.peds.peds[0];
+    ped.state = 'walk'; ped.scared = false; ped.group.visible = true;
+    ped.x = p.x + 12; ped.z = p.z; // directly in the car's path
+    p.heading = 0; p.vx = 18; p.vz = 0; // barreling toward it
+  });
+  await page.keyboard.down('KeyW');
+  let carScared = false;
+  for (let i = 0; i < 6; i++) {
+    await page.waitForTimeout(80);
+    if (await page.evaluate(() => window.__game.peds.peds[0].scared)) { carScared = true; break; }
+  }
+  await page.keyboard.up('KeyW');
+  check('a car bearing down scares pedestrians', carScared, `scared=${carScared}`);
+
+  // --- 9b. On foot, pedestrians do NOT fear the player (by design).
+  await reset();
+  await page.keyboard.press('KeyF');
+  await page.waitForTimeout(250);
+  await page.evaluate(() => {
     const g = window.__game;
     const p = g.peds.peds[0];
     p.state = 'walk'; p.scared = false; p.group.visible = true;
-    p.x = g.player.x + 2; p.z = g.player.z; // right next to the player
-    return { mode: g.mode, startD: Math.hypot(p.x - g.player.x, p.z - g.player.z) };
+    p.x = g.player.x + 2; p.z = g.player.z; // right next to the on-foot player
   });
-  let everScared = false;
-  let lastD = setup.startD;
-  for (let i = 0; i < 8; i++) {
-    await page.waitForTimeout(110);
-    const r = await page.evaluate(() => {
-      const g = window.__game;
-      const p = g.peds.peds[0];
-      return { scared: p.scared, d: Math.hypot(p.x - g.player.x, p.z - g.player.z) };
+  await page.waitForTimeout(400);
+  const onFootScared = await page.evaluate(() => window.__game.peds.peds[0].scared);
+  check('pedestrians ignore the player on foot', onFootScared === false, `scared=${onFootScared}`);
+
+  // --- 9c. BUSTED: a cop pinning you slow resets the game.
+  await reset();
+  await page.evaluate(() => {
+    const g = window.__game;
+    const p = g.vehicles.cars[g.vehicles.playerIndex];
+    for (let i = 0; i < 3; i++) {
+      const ped = g.peds.peds[i];
+      ped.state = 'walk'; ped.group.visible = true; ped.x = p.x + 6 + i * 3; ped.z = p.z;
+    }
+    p.heading = 0; p.vx = 24; p.vz = 0;
+  });
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(1200);
+  await page.keyboard.up('KeyW');
+  let bustedSeen = false;
+  for (let i = 0; i < 22; i++) {
+    // Hold the player still and park a cop just within bust range (but outside
+    // collision range so it doesn't ram the player back up to speed).
+    await page.evaluate(() => {
+      const v = window.__game.vehicles;
+      const p = v.cars[v.playerIndex];
+      p.vx = 0; p.vz = 0;
+      const cop = v.cars.find((c) => c.role === 'police' && c.active);
+      if (cop) { cop.x = p.x + 6; cop.z = p.z; cop.vx = 0; cop.vz = 0; }
     });
-    if (r.scared) everScared = true;
-    lastD = r.d;
+    await page.waitForTimeout(150);
+    if (await page.evaluate(() => window.__game.busted)) { bustedSeen = true; break; }
   }
-  check(
-    'pedestrians flee when approached on foot',
-    setup.mode === 'foot' && everScared && lastD > setup.startD + 2,
-    JSON.stringify({ ...setup, everScared, lastD }),
-  );
+  check('cops bust you when they pin you slow', bustedSeen, `busted=${bustedSeen}`);
 
   // --- 10. Radio keeps playing after you get out of the car.
   await reset();

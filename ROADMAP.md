@@ -38,7 +38,6 @@ Keep _Shipped_ compact (one line per item; collapse old detail). When in doubt, 
 - [R005] 🔵 Street & building variety — @maintainer · more shapes/colours/props/street dressing
 - [R006] 🔵 In-game options menu — @maintainer · volume sliders (radio vs SFX), maybe quality toggle
 - [R007] 🔬 Chunked / streaming world — @maintainer · deterministic `generateChunk(cx,cz)` then load/unload; see Researched
-- [R008] 🔵 Busted state — community · police pin you at low speed → arrested (vs only ramming)
 
 ## 🔬 Researched — ready to implement
 Full write-ups in [`docs/research/`](docs/research/).
@@ -60,5 +59,7 @@ traffic brakes for you · run-overs (shove vs gib) · wanted level + smart polic
 avoidance) · pedestrians flee on foot · car radio (per-car station, mid-broadcast, distance-fade) ·
 synthesized SFX (gearbox engine, screech, gib, blips) · ~200 mph + MPH readout · render interpolation ·
 [R010] engine idles audibly at a parked car & fades as you walk off · [R011] footsteps on foot ·
-[R012] radio ducks when you step out (+ distance fade).
+[R012] radio ducks when you step out (+ distance fade) ·
+[R008] BUSTED screen when a cop pins you slow (resets the game) ·
+pedestrians fear the **car** (proximity + vector-dodge), not the on-foot player.
 Requester credits: [README](README.md#requested-by-the-internet).
