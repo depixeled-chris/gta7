@@ -1,0 +1,304 @@
+﻿{
+    "baseUrl":  "https://github.com/depixeled-chris/gta7/releases/download/radio-v1/",
+    "stations":  [
+                     {
+                         "name":  "002",
+                         "tracks":  [
+                                        {
+                                            "title":  "01-The Ways Men Could Die",
+                                            "file":  "dae_0_01.mp3"
+                                        },
+                                        {
+                                            "title":  "02-Funky Swamp-02-2",
+                                            "file":  "dae_0_02.mp3"
+                                        },
+                                        {
+                                            "title":  "03-Square Stompers",
+                                            "file":  "dae_0_03.mp3"
+                                        },
+                                        {
+                                            "title":  "04-Arrangement-028-002",
+                                            "file":  "dae_0_04.mp3"
+                                        },
+                                        {
+                                            "title":  "05-Recording-003-001",
+                                            "file":  "dae_0_05.mp3"
+                                        },
+                                        {
+                                            "title":  "06-It\u0027s Way Past Halloween Mix-005-001",
+                                            "file":  "dae_0_06.mp3"
+                                        },
+                                        {
+                                            "title":  "07-Arrangement-012-001",
+                                            "file":  "dae_0_07.mp3"
+                                        },
+                                        {
+                                            "title":  "08-Beats-002-001",
+                                            "file":  "dae_0_08.mp3"
+                                        },
+                                        {
+                                            "title":  "09-Lost Track",
+                                            "file":  "dae_0_09.mp3"
+                                        },
+                                        {
+                                            "title":  "10-Splice Project-001",
+                                            "file":  "dae_0_10.mp3"
+                                        },
+                                        {
+                                            "title":  "11-Arrangement-006-01-The Mad Clock",
+                                            "file":  "dae_0_11.mp3"
+                                        },
+                                        {
+                                            "title":  "12-Arrangement-004",
+                                            "file":  "dae_0_12.mp3"
+                                        },
+                                        {
+                                            "title":  "13-Recording-009-001",
+                                            "file":  "dae_0_13.mp3"
+                                        },
+                                        {
+                                            "title":  "14-Arrangement-015-001",
+                                            "file":  "dae_0_14.mp3"
+                                        },
+                                        {
+                                            "title":  "15-Recording-006",
+                                            "file":  "dae_0_15.mp3"
+                                        },
+                                        {
+                                            "title":  "16-Arrangement-019",
+                                            "file":  "dae_0_16.mp3"
+                                        },
+                                        {
+                                            "title":  "17-Arrangement-020-001",
+                                            "file":  "dae_0_17.mp3"
+                                        },
+                                        {
+                                            "title":  "18-Beats-001 Crunchy Peanut Butter",
+                                            "file":  "dae_0_18.mp3"
+                                        },
+                                        {
+                                            "title":  "19-Arrangement-013-001",
+                                            "file":  "dae_0_19.mp3"
+                                        },
+                                        {
+                                            "title":  "20-Aalto Sequence-0001",
+                                            "file":  "dae_0_20.mp3"
+                                        }
+                                    ]
+                     },
+                     {
+                         "name":  "Gonzo Gizmos I",
+                         "tracks":  [
+                                        {
+                                            "title":  "01 Modula Oblongata",
+                                            "file":  "dae_1_01.mp3"
+                                        },
+                                        {
+                                            "title":  "02 Octatrack-0003",
+                                            "file":  "dae_1_02.mp3"
+                                        },
+                                        {
+                                            "title":  "03 Quilts-00001",
+                                            "file":  "dae_1_03.mp3"
+                                        },
+                                        {
+                                            "title":  "04 Tempest Modular 002",
+                                            "file":  "dae_1_04.mp3"
+                                        },
+                                        {
+                                            "title":  "05 Volca Sample Jam-001",
+                                            "file":  "dae_1_05.mp3"
+                                        },
+                                        {
+                                            "title":  "06 Automatic Stellar Machine",
+                                            "file":  "dae_1_06.mp3"
+                                        },
+                                        {
+                                            "title":  "07 Elastic Beat-0001",
+                                            "file":  "dae_1_07.mp3"
+                                        }
+                                    ]
+                     },
+                     {
+                         "name":  "Gonzo Gizmos II",
+                         "tracks":  [
+                                        {
+                                            "title":  "01 Evacuation",
+                                            "file":  "dae_2_01.mp3"
+                                        },
+                                        {
+                                            "title":  "02 Epic Drone",
+                                            "file":  "dae_2_02.mp3"
+                                        },
+                                        {
+                                            "title":  "03 Halloween Mix-002",
+                                            "file":  "dae_2_03.mp3"
+                                        },
+                                        {
+                                            "title":  "04 Arrangement-022",
+                                            "file":  "dae_2_04.mp3"
+                                        },
+                                        {
+                                            "title":  "05 Spacestation MS-20",
+                                            "file":  "dae_2_05.mp3"
+                                        },
+                                        {
+                                            "title":  "06 Entering the Stream",
+                                            "file":  "dae_2_06.mp3"
+                                        },
+                                        {
+                                            "title":  "07 Arrangement-025",
+                                            "file":  "dae_2_07.mp3"
+                                        },
+                                        {
+                                            "title":  "08 Caffinated Druminated",
+                                            "file":  "dae_2_08.mp3"
+                                        }
+                                    ]
+                     },
+                     {
+                         "name":  "Specter Signals I",
+                         "tracks":  [
+                                        {
+                                            "title":  "01 Specter Signals I 01",
+                                            "file":  "dae_3_01.mp3"
+                                        },
+                                        {
+                                            "title":  "02 Specter Signals I 02",
+                                            "file":  "dae_3_02.mp3"
+                                        },
+                                        {
+                                            "title":  "03 Specter Signals I 03",
+                                            "file":  "dae_3_03.mp3"
+                                        },
+                                        {
+                                            "title":  "04 Specter Signals I 04",
+                                            "file":  "dae_3_04.mp3"
+                                        },
+                                        {
+                                            "title":  "05 Specter Signals I 05",
+                                            "file":  "dae_3_05.mp3"
+                                        }
+                                    ]
+                     },
+                     {
+                         "name":  "Stone\u0027s Throw Demo CD",
+                         "tracks":  [
+                                        {
+                                            "title":  "01-Taco Overture",
+                                            "file":  "dae_4_01.mp3"
+                                        },
+                                        {
+                                            "title":  "02-Lie Not",
+                                            "file":  "dae_4_02.mp3"
+                                        },
+                                        {
+                                            "title":  "03-It Is Knowing",
+                                            "file":  "dae_4_03.mp3"
+                                        },
+                                        {
+                                            "title":  "04-Buffalo Zelda",
+                                            "file":  "dae_4_04.mp3"
+                                        },
+                                        {
+                                            "title":  "05-Look Around",
+                                            "file":  "dae_4_05.mp3"
+                                        },
+                                        {
+                                            "title":  "06-While The Cat Is Away",
+                                            "file":  "dae_4_06.mp3"
+                                        }
+                                    ]
+                     },
+                     {
+                         "name":  "Unwicked",
+                         "tracks":  [
+                                        {
+                                            "title":  "01 FL-008-003",
+                                            "file":  "dae_5_01.mp3"
+                                        },
+                                        {
+                                            "title":  "02 FL-012-001",
+                                            "file":  "dae_5_02.mp3"
+                                        },
+                                        {
+                                            "title":  "03 FL-032",
+                                            "file":  "dae_5_03.mp3"
+                                        },
+                                        {
+                                            "title":  "04 FL-025",
+                                            "file":  "dae_5_04.mp3"
+                                        },
+                                        {
+                                            "title":  "05 FL-035",
+                                            "file":  "dae_5_05.mp3"
+                                        },
+                                        {
+                                            "title":  "06 FL-028-001",
+                                            "file":  "dae_5_06.mp3"
+                                        },
+                                        {
+                                            "title":  "07 FL-002-003",
+                                            "file":  "dae_5_07.mp3"
+                                        },
+                                        {
+                                            "title":  "08 FL-044",
+                                            "file":  "dae_5_08.mp3"
+                                        },
+                                        {
+                                            "title":  "09 FL-005-001",
+                                            "file":  "dae_5_09.mp3"
+                                        },
+                                        {
+                                            "title":  "10 FL-041",
+                                            "file":  "dae_5_10.mp3"
+                                        },
+                                        {
+                                            "title":  "11 FL-006-001",
+                                            "file":  "dae_5_11.mp3"
+                                        }
+                                    ]
+                     },
+                     {
+                         "name":  "Wicked Album Mix",
+                         "tracks":  [
+                                        {
+                                            "title":  "01 Wicked Mix Track 1",
+                                            "file":  "dae_6_01.mp3"
+                                        },
+                                        {
+                                            "title":  "02 Wicked Mix Track 2",
+                                            "file":  "dae_6_02.mp3"
+                                        },
+                                        {
+                                            "title":  "03 Wicked Mix Track 3",
+                                            "file":  "dae_6_03.mp3"
+                                        },
+                                        {
+                                            "title":  "04 Wicked Mix Track 4",
+                                            "file":  "dae_6_04.mp3"
+                                        },
+                                        {
+                                            "title":  "05 Wicked Mix Track 5",
+                                            "file":  "dae_6_05.mp3"
+                                        },
+                                        {
+                                            "title":  "06 Wicked Mix Track 6",
+                                            "file":  "dae_6_06.mp3"
+                                        },
+                                        {
+                                            "title":  "07 Wicked Mix Track 7",
+                                            "file":  "dae_6_07.mp3"
+                                        },
+                                        {
+                                            "title":  "08 Wicked Mix Track 8",
+                                            "file":  "dae_6_08.mp3"
+                                        },
+                                        {
+                                            "title":  "09 Wicked Mix Track 9",
+                                            "file":  "dae_6_09.mp3"
+                                        }
+                                    ]
+                     }
+                 ]
+}

@@ -260,6 +260,20 @@ try {
     `state=${bumped.state}, count ${slow.before} -> ${bumped.count}`,
   );
 
+  // --- 7. Radio: cycling the station with ] tunes off OFF to a station.
+  await reset();
+  const radioBefore = await page.evaluate(() => window.__game.radioLabel);
+  await page.keyboard.press('BracketRight');
+  await page.waitForTimeout(150);
+  await page.keyboard.press('BracketRight');
+  await page.waitForTimeout(150);
+  const radioAfter = await page.evaluate(() => window.__game.radioLabel);
+  check(
+    'radio tunes to a station on []',
+    radioBefore === '📻 OFF' && radioAfter !== '📻 OFF' && radioAfter.startsWith('📻'),
+    `"${radioBefore}" -> "${radioAfter}"`,
+  );
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();

@@ -19,6 +19,7 @@ export class HUD {
   private readonly healthFill: HTMLElement;
   private readonly wastedEl: HTMLElement;
   private readonly scoreEl: HTMLElement;
+  private readonly radioEl: HTMLElement;
 
   constructor(container: HTMLElement, private readonly city: City, touch = false) {
     this.toWorld = MAP_SIZE / city.extent;
@@ -65,6 +66,13 @@ export class HUD {
     this.scoreEl.textContent = '🚶 0';
     root.appendChild(this.scoreEl);
 
+    this.radioEl = document.createElement('div');
+    this.radioEl.style.cssText =
+      'position:absolute;left:50%;top:42px;transform:translateX(-50%);font-size:12px;' +
+      'opacity:.8;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    this.radioEl.textContent = '📻 OFF';
+    root.appendChild(this.radioEl);
+
     this.wastedEl = document.createElement('div');
     this.wastedEl.textContent = 'WASTED';
     this.wastedEl.style.cssText =
@@ -76,8 +84,8 @@ export class HUD {
 
     const help = document.createElement('div');
     help.innerHTML =
-      'WASD / Arrows — drive &nbsp;·&nbsp; Space — handbrake<br>' +
-      'F — enter / exit vehicle &nbsp;·&nbsp; Shift — sprint &nbsp;·&nbsp; R — reset car';
+      'WASD / Arrows — drive &nbsp;·&nbsp; Space — handbrake &nbsp;·&nbsp; F — enter / exit<br>' +
+      'Shift — sprint &nbsp;·&nbsp; R — reset car &nbsp;·&nbsp; [ ] — radio station';
     help.style.cssText =
       'position:absolute;left:20px;bottom:20px;font-size:12px;opacity:.7;line-height:1.6;';
     if (touch) help.style.display = 'none'; // the on-screen controls sit here instead
@@ -183,5 +191,9 @@ export class HUD {
 
   setRunOverCount(n: number): void {
     this.scoreEl.textContent = `🚶 ${n}`;
+  }
+
+  setRadio(label: string): void {
+    this.radioEl.textContent = label;
   }
 }

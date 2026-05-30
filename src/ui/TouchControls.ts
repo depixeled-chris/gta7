@@ -17,6 +17,7 @@ export class TouchControls {
   private sprintHeld = false;
   private enterEdge = false;
   private resetEdge = false;
+  private radioEdge = false;
 
   private stickPointer: number | null = null;
   private readonly base: HTMLElement;
@@ -97,6 +98,7 @@ export class TouchControls {
       () => (this.sprintHeld = false),
     );
     this.holdButton(pad, 'tc-reset', '⟲', 'reset', () => (this.resetEdge = true));
+    this.holdButton(pad, 'tc-radio', '📻', 'radio', () => (this.radioEdge = true));
   }
 
   private moveStick(clientX: number, clientY: number): void {
@@ -156,6 +158,11 @@ export class TouchControls {
   consumeReset(): boolean {
     const r = this.resetEdge;
     this.resetEdge = false;
+    return r;
+  }
+  consumeRadio(): boolean {
+    const r = this.radioEdge;
+    this.radioEdge = false;
     return r;
   }
 }

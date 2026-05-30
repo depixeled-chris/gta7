@@ -51,6 +51,16 @@ export class Controls {
     return key || tap;
   }
 
+  /** Radio tuner step this frame: +1 next station, -1 previous, 0 none. */
+  radioStep(): number {
+    const next = this.kb.wasPressed('BracketRight');
+    const prev = this.kb.wasPressed('BracketLeft');
+    const tap = this.touch?.consumeRadio() ?? false; // touch button only goes forward
+    if (next || tap) return 1;
+    if (prev) return -1;
+    return 0;
+  }
+
   endFrame(): void {
     this.kb.endFrame();
   }

@@ -5,3 +5,5 @@ dist/
 .vite/
 # smoke-test output (the committed hero shot lives in docs/)
 /smoke.png
+# radio audio is hosted on a GitHub Release, not committed; manifest is public/radio.json
+/.radio-staging/

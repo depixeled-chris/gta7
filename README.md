@@ -20,6 +20,7 @@
 - **Traffic that brakes for you… mostly** — stand in the road and oncoming cars slow and stop; dart out from inside their stopping distance and they can't help it. Get hit and you lose health; run out and it's **WASTED**, then you respawn.
 - **Run people over** — flatten a pedestrian at speed and they burst into a shower of little cubes; your tally shows on the HUD. (Ambient traffic is lethal too, but only your kills count.)
 - **Ambient life** — traffic looping the avenues and pedestrians milling the streets.
+- **Car radio** — 7 stations of original music streamed from a CDN (never bundled); tune with `[` / `]`. Every car drops you into the middle of a track like a live broadcast, and the next song is prefetched while the current one plays.
 - **Plays on mobile** — keyboard on desktop, an on-screen analog joystick + action buttons on touch devices (auto-detected), with quality scaled down for phone GPUs.
 - **HUD + live minimap** — speedometer, health, mode indicator, and a top-down radar of the city and traffic.
 - **Backed by tests** — the simulation core (vehicle physics, city generation, collision, RNG) is pure and unit-tested; headless-Chromium tests prove the scene renders *and* that driving, carjacking, and collisions actually work.
@@ -46,6 +47,7 @@ npm run dev      # then open the printed localhost URL
 | Enter / exit nearest vehicle | `F` |
 | Sprint (on foot) | `Shift` |
 | Reset car | `R` |
+| Radio station (prev / next) | `[` / `]` |
 
 On a touch device the same actions map to an on-screen joystick (steer + throttle / move) and buttons (enter-exit · handbrake · sprint · reset).
 
@@ -76,6 +78,9 @@ This whole thing is a community-driven dare, built live from requests. Credit wh
 - **Being able to run pedestrians over** — u/Syrus_101 (*"I couldn't run over anyone. Unacceptable."*)
 - **Pedestrians exploding into tiny block parts** — u/jrobertson50
 - **Reverse-steering sanity check** — u/Marathon2021 (verified: it's realistic rear-steer, now locked by a test)
+- **Radio stations** — u/aweh_sassy
+
+🎵 All radio music is by **Daemon Electricity** (the maintainer's own project), streamed from a [GitHub Release](https://github.com/depixeled-chris/gta7/releases/tag/radio-v1) rather than bundled into the site.
 
 Got a request? It probably came from [the thread](https://www.reddit.com/r/ClaudeAI/comments/1tqz2se/lets_check_opus_48_how_good_is_it/).
 

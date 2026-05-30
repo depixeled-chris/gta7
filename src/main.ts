@@ -11,6 +11,7 @@ import { HUD, type Mode } from './ui/HUD';
 import { Controls } from './core/Controls';
 import { GameLoop } from './core/GameLoop';
 import { lerp, angleLerp } from './core/math';
+import { Radio } from './audio/Radio';
 import { toKmh, type VehicleInput } from './vehicles/VehicleModel';
 
 /** Touch UI + lower quality on coarse-pointer devices; `?touch=1|0` forces it. */
@@ -76,6 +77,35 @@ const controls = new Controls(touchRoot);
 const follow = new FollowCamera(env.camera);
 const player = new Player();
 
+// The radio streams one track at a time from a CDN-hosted manifest, so the
+// (large) music library is never bundled. It loads asynchronously and stays
+// silent until the first user gesture (browser autoplay policy).
+let radio: Radio | null = null;
+let radioPrimed = false;
+let userGestured = false;
+const markGesture = (): void => {
+  userGestured = true;
+};
+addEventListener('keydown', markGesture);
+addEventListener('pointerdown', markGesture);
+
+interface RadioManifest {
+  baseUrl: string;
+  stations: { name: string; tracks: { title: string; file: string }[] }[];
+}
+fetch('radio.json')
+  .then((r) => (r.ok ? (r.json() as Promise<RadioManifest>) : null))
+  .then((data) => {
+    if (!data?.stations?.length) return;
+    radio = new Radio(
+      data.stations.map((s) => ({
+        name: s.name,
+        tracks: s.tracks.map((t) => ({ title: t.title, url: data.baseUrl + t.file })),
+      })),
+    );
+  })
+  .catch(() => {});
+
 let mode: Mode = 'driving';
 player.x = city.center.x;
 player.z = city.center.z;
@@ -106,11 +136,14 @@ function toggleVehicle(): void {
     player.heading = pose.heading;
     vehicles.exit();
     mode = 'foot';
+    radio?.exitCar();
   } else {
     const i = vehicles.nearest(player.x, player.z, ENTER_DISTANCE);
     if (i >= 0) {
       vehicles.enter(i);
       mode = 'driving';
+      radio?.enterCar();
+      radioPrimed = true;
     }
   }
 }
@@ -195,6 +228,16 @@ function update(dt: number): void {
     checkPedestrianDamage();
   }
 
+  if (radio) {
+    const step = controls.radioStep();
+    if (step !== 0) radio.step(step);
+    // Spawned in a car: tune in once the player has gestured (autoplay rules).
+    if (!radioPrimed && userGestured && mode === 'driving') {
+      radio.enterCar();
+      radioPrimed = true;
+    }
+  }
+
   peds.update(city, dt, runOverQuery);
   controls.endFrame();
 }
@@ -252,6 +295,7 @@ function render(alpha: number, frameDt: number): void {
   const speedKmh = mode === 'driving' ? toKmh(vehicles.playerForwardSpeed()) : toKmh(player.speed);
   hud.update(speedKmh, mode, active, vehicles.positions(), health, wasted);
   hud.setRunOverCount(peds.runOverCount);
+  hud.setRadio(radio ? radio.label() : '📻 OFF');
   env.render();
 }
 
@@ -262,6 +306,7 @@ declare global {
       readonly health: number;
       readonly wasted: boolean;
       readonly runOverCount: number;
+      readonly radioLabel: string;
       vehicles: Vehicles;
       player: Player;
       peds: Pedestrians;
@@ -281,6 +326,9 @@ window.__game = {
   },
   get runOverCount() {
     return peds.runOverCount;
+  },
+  get radioLabel() {
+    return radio ? radio.label() : '📻 OFF';
   },
   vehicles,
   player,
