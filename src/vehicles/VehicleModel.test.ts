@@ -59,6 +59,19 @@ describe('stepVehicle', () => {
     expect(rev.heading).toBeLessThan(0);
   });
 
+  it('reversing while steering left backs the car toward its left (real rear-steer)', () => {
+    // Forward + left curves toward -Z (the driver's left). Reversing + left
+    // should ALSO carry the car toward -Z (you back to your left), even though
+    // the nose swings the other way. This is the intuitive, real-car behavior.
+    const fwdLeft = drive(rest(), { throttle: 1, steer: 1 }, 80);
+    expect(fwdLeft.z).toBeLessThan(0); // forward-left travels toward -Z
+
+    const rev = drive(rest(), { throttle: -1 }, 90); // get moving backward
+    const revLeft = drive(rev, { throttle: -1, steer: 1 }, 60);
+    expect(revLeft.x).toBeLessThan(rev.x); // still moving backward (-X)
+    expect(revLeft.z).toBeLessThan(0); // and curving toward the driver's left
+  });
+
   it('brakes harder than it coasts', () => {
     const moving = drive(rest(), { throttle: 1 }, 120);
     const braked = drive(moving, { throttle: -1 }, 10);

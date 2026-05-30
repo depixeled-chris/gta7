@@ -71,10 +71,11 @@ See [`CLAUDE.md`](CLAUDE.md) for architecture — the short version: gameplay lo
 This whole thing is a community-driven dare, built live from requests. Credit where it's due:
 
 - **The original dare** — [u/Mr_Versatile](https://www.reddit.com/r/ClaudeAI/comments/1tqz2se/lets_check_opus_48_how_good_is_it/), *"Let's check Opus 4.8 — how good is it?"*
-- **Streetlights, parked cars, headlights, powerslides, faster cars, health + WASTED, traffic that brakes for you, smoother framerate, no-pinch-zoom, this demo link** — u/daemon-electricity
+- **Streetlights, parked cars, headlights, powerslides, faster cars, health + WASTED, traffic that brakes for you, smoother framerate, no-pinch-zoom, slow-bump-vs-fast-gib, this demo link** — u/daemon-electricity
 - **Mobile / touch support** — u/Specialist_Juce879
 - **Being able to run pedestrians over** — u/Syrus_101 (*"I couldn't run over anyone. Unacceptable."*)
 - **Pedestrians exploding into tiny block parts** — u/jrobertson50
+- **Reverse-steering sanity check** — u/Marathon2021 (verified: it's realistic rear-steer, now locked by a test)
 
 Got a request? It probably came from [the thread](https://www.reddit.com/r/ClaudeAI/comments/1tqz2se/lets_check_opus_48_how_good_is_it/).
 

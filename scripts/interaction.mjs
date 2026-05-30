@@ -214,17 +214,15 @@ try {
     JSON.stringify(deathRes),
   );
 
-  // --- 6. Run over a pedestrian: drive through one at speed, count goes up.
+  // --- 6. Run over a pedestrian at speed: they gib and the count goes up.
   await reset();
   const ranOver = await page.evaluate(() => {
     const g = window.__game;
-    const v = g.vehicles;
-    const p = v.cars[v.playerIndex];
-    // Put a pedestrian dead ahead (heading 0 = +X) and stop the others nearby.
+    const p = g.vehicles.cars[g.vehicles.playerIndex];
     const ped = g.peds.peds[0];
-    ped.hit = false; ped.y = 0; ped.tumble = 0;
+    ped.state = 'walk'; ped.y = 0; ped.tumble = 0; ped.group.visible = true;
     ped.x = p.x + 7; ped.z = p.z;
-    p.heading = 0; p.vx = 22; p.vz = 0;
+    p.heading = 0; p.vx = 22; p.vz = 0; // fast: >= GIB_SPEED
     return { before: g.runOverCount };
   });
   await page.keyboard.down('KeyW');
@@ -232,12 +230,34 @@ try {
   await page.keyboard.up('KeyW');
   const splat = await page.evaluate(() => ({
     count: window.__game.runOverCount,
-    down: window.__game.peds.peds[0].hit,
+    state: window.__game.peds.peds[0].state,
   }));
   check(
-    'driving into a pedestrian runs them over',
-    splat.count > ranOver.before && splat.down,
-    `count ${ranOver.before} -> ${splat.count}, downed=${splat.down}`,
+    'a fast hit gibs the pedestrian and scores',
+    splat.count > ranOver.before && splat.state === 'gibbed',
+    `count ${ranOver.before} -> ${splat.count}, state=${splat.state}`,
+  );
+
+  // --- 6b. A SLOW bump just shoves them (no gib, no score).
+  await reset();
+  const slow = await page.evaluate(() => {
+    const g = window.__game;
+    const p = g.vehicles.cars[g.vehicles.playerIndex];
+    const ped = g.peds.peds[0];
+    ped.state = 'walk'; ped.y = 0; ped.tumble = 0; ped.group.visible = true;
+    ped.x = p.x + 3; ped.z = p.z;
+    p.heading = 0; p.vx = 6; p.vz = 0; // slow: between SHOVE and GIB, no throttle
+    return { before: g.runOverCount };
+  });
+  await page.waitForTimeout(300);
+  const bumped = await page.evaluate(() => ({
+    count: window.__game.runOverCount,
+    state: window.__game.peds.peds[0].state,
+  }));
+  check(
+    'a slow bump shoves the pedestrian (no gib, no score)',
+    bumped.state === 'shoved' && bumped.count === slow.before,
+    `state=${bumped.state}, count ${slow.before} -> ${bumped.count}`,
   );
 
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
