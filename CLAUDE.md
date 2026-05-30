@@ -34,13 +34,13 @@ The codebase is split along one hard line: **the simulation core is pure and Thr
 
 **Pure core (no `three`, unit-tested):**
 - `src/core/` — `math` (clamp/lerp/frame-rate-independent `damp`/`angleDelta`), `rng` (seeded mulberry32), `Input` (keyboard with edge detection), `GameLoop` (fixed-timestep accumulator).
-- `src/world/City.ts` — deterministic procedural city generation from a seed: buildings, AABB colliders, traffic lanes, spawn point.
+- `src/world/City.ts` — deterministic procedural city generation from a seed: buildings, AABB colliders, traffic lanes, streetlight positions, curbside parking spots, spawn point.
 - `src/vehicles/VehicleModel.ts` — pure arcade vehicle dynamics. `stepVehicle` is a pure function (state + input → state) over a world **velocity vector**; it decomposes velocity into forward/lateral each step and bleeds the lateral part off by tyre grip. The handbrake slashes that grip, which is what produces powerslides.
 - `src/systems/Collision.ts` — circle-vs-AABB push-out, circle-vs-circle overlap (for car-on-car), and nearest-point search.
 
 **Render/runtime layer (imports `three`, browser-only):**
-- `src/render/` — `Scene` (renderer, dusk lighting, ground/roads, fog), `Assets` (building/car/ped mesh factories + material cache), `textures` (procedural canvas facade texture).
-- `src/systems/` — `FollowCamera` (smoothed chase cam), `Vehicles` (ALL cars — player, AI traffic, parked — with one shared physics + collision pass), `Pedestrians` (ambient walkers).
+- `src/render/` — `Scene` (renderer, dusk lighting, ground/roads, fog), `Assets` (building/car/ped/streetlight mesh factories + material cache), `textures` (procedural facade + radial-glow canvas textures).
+- `src/systems/` — `FollowCamera` (smoothed chase cam), `Vehicles` (ALL cars — player, AI traffic, parked-from-`city.parkingSpots` — with one shared physics + collision pass), `Pedestrians` (ambient walkers).
 - `src/entities/Player.ts` — on-foot avatar controller.
 - `src/ui/HUD.ts` — DOM overlay: speedometer, mode, controls, live minimap.
 - `src/main.ts` — the orchestrator: builds the world, owns the driving↔on-foot state machine, runs the loop, applies collision, drives the camera.
@@ -50,6 +50,7 @@ The codebase is split along one hard line: **the simulation core is pure and Thr
 - **Coordinate frame (single source of truth):** world X = east, Z = south, Y = up. Heading `0` points along +X and increases counter-clockwise (toward −Z). Forward = `(cos h, 0, −sin h)`, right = `(sin h, 0, cos h)`. `VehicleModel`, `Vehicles`, `Player`, and `FollowCamera` all assume this — keep new systems consistent with it. A car mesh's `rotation.y` equals its heading directly.
 - **One physics model for all cars:** the player's car, AI traffic, and parked/abandoned cars are the same `Car` struct in `Vehicles`. Only the player car is integrated by `stepVehicle`; AI cars follow lanes (with knock-and-recover), parked cars coast to rest. A single pass then resolves every car against buildings and against each other (momentum exchange). Don't add a separate code path for "the player car" — extend the shared one.
 - **Determinism:** `City`, `Vehicles`, and `Pedestrians` are seeded via `createRng`. Same seed → same world. The `City` tests depend on this; don't introduce `Math.random()` into world generation.
+- **Lighting budget:** the night look is mostly emissive (building windows, lamp heads) plus one shadow-casting directional light. Real dynamic lights are kept to a tiny pool — the streetlights are emissive meshes + additive ground "glow pools", and only ~6 pooled `PointLight`s hop to the streetlights nearest the player each frame; headlights are 2 non-shadow `SpotLight`s on the driven car. Don't add a real light per streetlight (81 of them) — extend the pooling in `main.ts`.
 - **Fixed timestep:** `GameLoop` calls `update(dt)` at a constant 60 Hz and `render()` once per frame. Put simulation in `update`, presentation in `render`.
 - **Collision model:** every moving actor is a ground-plane circle; the world is `city.colliders` (axis-aligned building footprints). Resolve with `resolveCircle`.
 - **Building UVs (`Assets.scaleFacadeUvs`)** rely on Three's `BoxGeometry` face/group order: +X, −X, +Y, −Y, +Z, −Z. The roof/floor faces are intentionally collapsed to a dark texel.

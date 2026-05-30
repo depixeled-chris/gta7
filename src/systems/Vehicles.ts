@@ -86,6 +86,25 @@ export class Vehicles {
         steerWheels: car.steerWheels,
       });
     }
+
+    for (const spot of city.parkingSpots) {
+      const car = makeCar(rng.pick(TRAFFIC_COLORS));
+      car.group.position.set(spot.x, 0, spot.z);
+      car.group.rotation.y = spot.heading;
+      scene.add(car.group);
+      this.cars.push({
+        x: spot.x,
+        z: spot.z,
+        heading: spot.heading,
+        vx: 0,
+        vz: 0,
+        role: 'parked',
+        lane: null,
+        cruise: 0,
+        group: car.group,
+        steerWheels: car.steerWheels,
+      });
+    }
   }
 
   update(city: City, dt: number, input: VehicleInput | null): void {

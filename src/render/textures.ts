@@ -44,3 +44,25 @@ export function makeFacadeTexture(seed: number, cells = 8, px = 256): THREE.Canv
   tex.anisotropy = 4;
   return tex;
 }
+
+/**
+ * Soft radial gradient (white core → transparent edge). Laid flat under a lamp
+ * with additive blending it fakes the pool of light a streetlight casts, far
+ * cheaper than a real shadow-casting light per pole.
+ */
+export function makeGlowTexture(px = 128): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = px;
+  const ctx = canvas.getContext('2d')!;
+  const r = px / 2;
+  const grad = ctx.createRadialGradient(r, r, 0, r, r, r);
+  grad.addColorStop(0, 'rgba(255,232,196,1)');
+  grad.addColorStop(0.4, 'rgba(255,216,150,0.45)');
+  grad.addColorStop(1, 'rgba(255,200,120,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, px, px);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}

@@ -41,4 +41,23 @@ describe('generateCity', () => {
     expect(xs.length).toBe(zs.length);
     expect(city.lanes.length).toBeGreaterThan(0);
   });
+
+  it('places a streetlight at every road intersection, deterministically', () => {
+    const city = generateCity(DEFAULT_CITY);
+    const n = city.roadCenters.length;
+    expect(city.streetlights.length).toBe(n * n);
+    expect(generateCity(DEFAULT_CITY).streetlights).toEqual(city.streetlights);
+  });
+
+  it('generates curbside parking spots that never sit inside a building', () => {
+    const city = generateCity(DEFAULT_CITY);
+    expect(city.parkingSpots.length).toBeGreaterThan(0);
+    for (const s of city.parkingSpots) {
+      for (const c of city.colliders) {
+        const inside = s.x > c.minX && s.x < c.maxX && s.z > c.minZ && s.z < c.maxZ;
+        expect(inside).toBe(false);
+      }
+    }
+    expect(generateCity(DEFAULT_CITY).parkingSpots).toEqual(city.parkingSpots);
+  });
 });

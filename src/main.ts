@@ -21,6 +21,7 @@ const city = generateCity(DEFAULT_CITY);
 const env = new SceneEnv(container, city);
 const assets = new CityAssets(city.config.seed);
 city.buildings.forEach((b, i) => env.scene.add(assets.makeBuilding(b, i)));
+city.streetlights.forEach((s) => env.scene.add(assets.makeStreetlight(s)));
 
 const avatar = makePed(0x2266dd);
 env.scene.add(avatar);
@@ -28,6 +29,25 @@ env.scene.add(avatar);
 // Warm glow that rides the active actor so the night street reads up close.
 const lamp = new THREE.PointLight(0xffd9a8, 60, 40, 2);
 env.scene.add(lamp);
+
+// A handful of real point lights hop to the streetlights nearest the player,
+// so lamps actually cast pools of light without paying for 81 live lights.
+const STREETLIGHT_POOL = 6;
+const streetlightPool = Array.from({ length: STREETLIGHT_POOL }, () => {
+  const l = new THREE.PointLight(0xffcf9a, 45, 28, 1.6);
+  env.scene.add(l);
+  return l;
+});
+const slOrder = city.streetlights.map((_, i) => i);
+
+// Twin headlight spots on the car you're driving; dark while on foot.
+const headlights = [0, 1].map(() => {
+  const light = new THREE.SpotLight(0xfff2d0, 0, 42, 0.62, 0.5, 1.1);
+  const target = new THREE.Object3D();
+  light.target = target;
+  env.scene.add(light, target);
+  return { light, target };
+});
 
 const vehicles = new Vehicles(env.scene, city);
 const peds = new Pedestrians(env.scene, city);
@@ -104,6 +124,34 @@ function update(dt: number): void {
   input.endFrame();
 }
 
+function updateStreetlightPool(ax: number, az: number): void {
+  const sl = city.streetlights;
+  const d2 = (i: number): number => (sl[i].x - ax) ** 2 + (sl[i].z - az) ** 2;
+  slOrder.sort((a, b) => d2(a) - d2(b));
+  for (let i = 0; i < streetlightPool.length; i++) {
+    const s = sl[slOrder[i]];
+    streetlightPool[i].position.set(s.x, 4.8, s.z);
+  }
+}
+
+function updateHeadlights(pose: { x: number; z: number; heading: number } | null): void {
+  if (!pose) {
+    for (const h of headlights) h.light.intensity = 0;
+    return;
+  }
+  const fx = Math.cos(pose.heading);
+  const fz = -Math.sin(pose.heading);
+  const rx = Math.sin(pose.heading);
+  const rz = Math.cos(pose.heading);
+  for (let i = 0; i < headlights.length; i++) {
+    const side = i === 0 ? -0.6 : 0.6;
+    const h = headlights[i];
+    h.light.position.set(pose.x + fx * 2 + rx * side, 0.7, pose.z + fz * 2 + rz * side);
+    h.target.position.set(pose.x + fx * 16, 0.1, pose.z + fz * 16);
+    h.light.intensity = 90;
+  }
+}
+
 function render(): void {
   avatar.position.set(player.x, 0, player.z);
   avatar.rotation.y = player.heading;
@@ -112,6 +160,8 @@ function render(): void {
   const pose = vehicles.playerPose();
   const active = mode === 'driving' && pose ? pose : player;
   lamp.position.set(active.x, 3.5, active.z);
+  updateStreetlightPool(active.x, active.z);
+  updateHeadlights(mode === 'driving' && pose ? pose : null);
 
   const dt = 1 / 60;
   follow.update(active.x, active.z, active.heading, mode === 'driving' ? CAR_CAM : FOOT_CAM, dt);

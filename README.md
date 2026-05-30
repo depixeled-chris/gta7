@@ -9,14 +9,16 @@
 ## Features
 
 - **Procedural night city** — a seeded grid of streets and hundreds of lit-window towers; same seed always rebuilds the same skyline.
+- **Lit streets** — a streetlight on every corner casting warm pools of light, plus working twin headlights on the car you're driving.
 - **Arcade driving with powerslides** — a velocity-vector handling model with tyre grip; yank the handbrake mid-corner and the back end steps out into a drift.
-- **Carjack anything** — walk up to *any* car — your spawn ride or ambient traffic — and get in.
+- **Carjack anything** — walk up to *any* car — your spawn ride, ambient traffic, or one of the cars parked along the curbs — and get in.
 - **Physical cars** — solid buildings and momentum-based car-on-car impacts: ram traffic and it gets shoved off course.
 - **Ambient life** — traffic looping the avenues and pedestrians milling the streets.
 - **HUD + live minimap** — speedometer, mode indicator, and a top-down radar of the city and traffic.
 - **Backed by tests** — the simulation core (vehicle physics, city generation, collision, RNG) is pure and unit-tested; headless-Chromium tests prove the scene renders *and* that driving, carjacking, and collisions actually work.
 
 ![Powersliding on the handbrake](docs/drift.png)
+![A streetlight casting a pool of light over the road](docs/streetlights.png)
 
 ## Play it
 

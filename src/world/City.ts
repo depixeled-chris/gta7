@@ -17,6 +17,19 @@ export interface Lane {
   dir: 1 | -1; // travel direction along `axis`
 }
 
+/** A streetlight position (lamp sits on a pole at this ground point). */
+export interface Streetlight {
+  x: number;
+  z: number;
+}
+
+/** A curbside parking spot: where a parked car sits and which way it faces. */
+export interface ParkingSpot {
+  x: number;
+  z: number;
+  heading: number;
+}
+
 export interface CityConfig {
   seed: number;
   grid: number; // blocks per side
@@ -34,6 +47,8 @@ export interface City {
   buildings: Building[];
   colliders: Aabb[];
   lanes: Lane[];
+  streetlights: Streetlight[];
+  parkingSpots: ParkingSpot[];
   /** A road intersection near the middle — a good place to spawn the player. */
   center: { x: number; z: number };
 }
@@ -74,6 +89,8 @@ export function generateCity(config: CityConfig = DEFAULT_CITY): City {
 
   const laneOffset = roadWidth / 4;
   const lanes = buildLanes(roadCenters, half, laneOffset);
+  const streetlights = buildStreetlights(roadCenters, roadWidth);
+  const parkingSpots = buildParkingSpots(roadCenters, cell, blockSize, roadWidth, half, rng, colliders);
 
   // Spawn at the central intersection of the grid.
   const mid = roadCenters[Math.floor(roadCenters.length / 2)];
@@ -88,6 +105,8 @@ export function generateCity(config: CityConfig = DEFAULT_CITY): City {
     buildings,
     colliders,
     lanes,
+    streetlights,
+    parkingSpots,
     center: { x: mid, z: mid },
   };
 }
@@ -155,4 +174,66 @@ function buildLanes(roadCenters: number[], half: number, laneOffset: number): La
     lanes.push({ axis: 'z', fixed: fixed + laneOffset, dir: 1 });
   }
   return lanes;
+}
+
+/** One lamp on the curb corner of every road intersection. */
+function buildStreetlights(roadCenters: number[], roadWidth: number): Streetlight[] {
+  const curb = roadWidth / 2 + 1.2;
+  const lights: Streetlight[] = [];
+  for (const x of roadCenters) {
+    for (const z of roadCenters) {
+      lights.push({ x: x + curb, z: z + curb });
+    }
+  }
+  return lights;
+}
+
+/**
+ * Curbside parked cars: a chance of one car per block edge, hugging the curb
+ * just outside the moving-traffic lanes and aligned with the road. Spots that
+ * would clip a building are dropped.
+ */
+function buildParkingSpots(
+  roadCenters: number[],
+  cell: number,
+  blockSize: number,
+  roadWidth: number,
+  half: number,
+  rng: ReturnType<typeof createRng>,
+  colliders: Aabb[],
+): ParkingSpot[] {
+  const offset = roadWidth / 2 + 0.3; // at the curb, clear of the lanes
+  const fill = 0.22;
+  const grid = roadCenters.length - 1;
+  const spots: ParkingSpot[] = [];
+
+  const blockCenter = (b: number): number => b * cell + roadWidth + blockSize / 2 - half;
+
+  const tryAdd = (x: number, z: number, heading: number): void => {
+    if (!rng.chance(fill)) return;
+    if (insideAnyCollider(x, z, colliders, 2)) return;
+    spots.push({ x, z, heading });
+  };
+
+  for (const rc of roadCenters) {
+    for (let b = 0; b < grid; b++) {
+      const along = blockCenter(b);
+      // Parked along a road running on the Z axis (car faces ±Z).
+      const sx = rng.chance(0.5) ? 1 : -1;
+      tryAdd(rc + sx * offset, along, rng.chance(0.5) ? Math.PI / 2 : -Math.PI / 2);
+      // Parked along a road running on the X axis (car faces ±X).
+      const sz = rng.chance(0.5) ? 1 : -1;
+      tryAdd(along, rc + sz * offset, rng.chance(0.5) ? 0 : Math.PI);
+    }
+  }
+  return spots;
+}
+
+function insideAnyCollider(x: number, z: number, colliders: Aabb[], pad: number): boolean {
+  for (const c of colliders) {
+    if (x > c.minX - pad && x < c.maxX + pad && z > c.minZ - pad && z < c.maxZ + pad) {
+      return true;
+    }
+  }
+  return false;
 }

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
-import type { Building } from '../world/City';
-import { makeFacadeTexture } from './textures';
+import type { Building, Streetlight } from '../world/City';
+import { makeFacadeTexture, makeGlowTexture } from './textures';
+
+const LAMP_HEIGHT = 5.2;
 
 const UV_TILE = 24; // world units per full facade-texture tile (~3 units/window)
 
@@ -15,9 +17,50 @@ export class CityAssets {
   private readonly sideCache = new Map<string, THREE.Material>();
   private readonly roofMat: THREE.Material;
 
+  // Shared across every streetlight so the whole grid of lamps costs a handful
+  // of GPU resources, not one set per pole.
+  private readonly poleGeo = new THREE.CylinderGeometry(0.13, 0.18, LAMP_HEIGHT, 8);
+  private readonly headGeo = new THREE.SphereGeometry(0.42, 12, 10);
+  private readonly poolGeo = new THREE.PlaneGeometry(11, 11);
+  private readonly poleMat = new THREE.MeshStandardMaterial({ color: 0x14161c, roughness: 0.7, metalness: 0.4 });
+  private readonly headMat = new THREE.MeshStandardMaterial({
+    color: 0xffe6bf,
+    emissive: 0xffd9a0,
+    emissiveIntensity: 3,
+  });
+  private readonly poolMat: THREE.Material;
+
   constructor(seed: number, variants = 3) {
     this.facades = Array.from({ length: variants }, (_, i) => makeFacadeTexture(seed + i * 101));
     this.roofMat = new THREE.MeshStandardMaterial({ color: 0x14171f, roughness: 0.95 });
+    this.poolMat = new THREE.MeshBasicMaterial({
+      map: makeGlowTexture(),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      opacity: 0.9,
+    });
+  }
+
+  makeStreetlight(s: Streetlight): THREE.Group {
+    const g = new THREE.Group();
+
+    const pole = new THREE.Mesh(this.poleGeo, this.poleMat);
+    pole.position.y = LAMP_HEIGHT / 2;
+    pole.castShadow = true;
+    g.add(pole);
+
+    const head = new THREE.Mesh(this.headGeo, this.headMat);
+    head.position.y = LAMP_HEIGHT;
+    g.add(head);
+
+    const pool = new THREE.Mesh(this.poolGeo, this.poolMat);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.05; // hover just above the road to avoid z-fighting
+    g.add(pool);
+
+    g.position.set(s.x, 0, s.z);
+    return g;
   }
 
   makeBuilding(b: Building, index: number): THREE.Mesh {
