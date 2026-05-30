@@ -4,7 +4,6 @@ import { SceneEnv } from './render/Scene';
 import { CityAssets, makePed } from './render/Assets';
 import { Player } from './entities/Player';
 import { FollowCamera, CAR_CAM, FOOT_CAM } from './systems/FollowCamera';
-import { resolveCircle } from './systems/Collision';
 import { Vehicles } from './systems/Vehicles';
 import { Pedestrians } from './systems/Pedestrians';
 import { HUD, type Mode } from './ui/HUD';
@@ -195,7 +194,7 @@ function updateFoot(dt: number): void {
 
   player.update(dirX, dirZ, controls.sprint(), dt);
 
-  const fixed = resolveCircle(player.x, player.z, FOOT_RADIUS, city.colliders);
+  const fixed = city.grid.resolve(player.x, player.z, FOOT_RADIUS);
   player.x = fixed.x;
   player.z = fixed.z;
   clampToCity(player);
@@ -283,6 +282,13 @@ function checkPedestrianDamage(): void {
 // Any car (including the one you're driving) moving fast enough flattens peds.
 const runOverQuery = (x: number, z: number) => vehicles.pedestrianImpact(x, z, true);
 
+/** Sound the car wrecks from this step; a wrecked player car means WASTED. */
+function flushCarWrecks(): void {
+  const n = vehicles.consumeExplosions();
+  for (let k = 0; k < Math.min(n, 3); k++) sfx.explosion();
+  if (vehicles.consumePlayerWreck() && !wasted) enterWasted();
+}
+
 function update(dt: number): void {
   player.savePrev();
 
@@ -290,6 +296,7 @@ function update(dt: number): void {
     if (wasted) wastedTimer -= dt;
     else bustedTimer -= dt;
     vehicles.update(city, dt, null, null);
+    flushCarWrecks();
     peds.update(city, dt, runOverQuery, null);
     if ((wasted && wastedTimer <= 0) || (busted && bustedTimer <= 0)) respawn();
     controls.endFrame();
@@ -304,8 +311,10 @@ function update(dt: number): void {
   if (mode === 'driving') {
     if (controls.resetPressed()) vehicles.resetPlayer(city);
     vehicles.update(city, dt, drivingInput(), null, chase);
+    flushCarWrecks();
   } else {
     vehicles.update(city, dt, null, { x: player.x, z: player.z }, chase);
+    flushCarWrecks();
     updateFoot(dt);
     checkPedestrianDamage();
 
@@ -391,7 +400,9 @@ function render(alpha: number, frameDt: number): void {
   follow.update(active.x, active.z, active.heading, mode === 'driving' ? CAR_CAM : FOOT_CAM, frameDt);
 
   const speedMph = mode === 'driving' ? toMph(vehicles.playerForwardSpeed()) : toMph(player.speed);
-  hud.update(speedMph, mode, active, vehicles.positions(), health, wasted);
+  // The health bar reads car integrity while driving, avatar health on foot.
+  const shownHealth = mode === 'driving' ? vehicles.playerCarHealth() : health;
+  hud.update(speedMph, mode, active, vehicles.positions(), shownHealth, wasted);
   hud.setRunOverCount(peds.runOverCount);
   hud.setRadio(radio ? radio.label() : '📻 OFF');
   hud.setWanted(stars);
@@ -422,6 +433,7 @@ declare global {
     __game?: {
       readonly mode: Mode;
       readonly health: number;
+      readonly carHealth: number;
       readonly wasted: boolean;
       readonly busted: boolean;
       readonly runOverCount: number;
@@ -441,6 +453,9 @@ window.__game = {
   },
   get health() {
     return health;
+  },
+  get carHealth() {
+    return vehicles.playerCarHealth();
   },
   get wasted() {
     return wasted;

@@ -378,6 +378,72 @@ try {
     `in-car "${inCar}" -> on-foot "${onFoot}"`,
   );
 
+  // --- 11. Damage model: a moderate crash dents the car but it survives.
+  await reset();
+  const dent = await page.evaluate(() => {
+    const g = window.__game;
+    const c = g.city.colliders.reduce((a, b) => (b.minX < a.minX ? b : a));
+    const car = g.vehicles.cars[g.vehicles.playerIndex];
+    car.x = c.minX - 2; car.z = (c.minZ + c.maxZ) / 2; car.heading = 0;
+    car.vx = 16; car.vz = 0; // a solid but survivable smack into the wall
+    return { before: g.carHealth };
+  });
+  await page.waitForTimeout(500);
+  const dented = await page.evaluate(() => ({ health: window.__game.carHealth, wasted: window.__game.wasted }));
+  check(
+    'a crash damages the car without wrecking it',
+    dent.before === 100 && dented.health < 100 && dented.health > 0 && !dented.wasted,
+    `carHealth ${dent.before} -> ${dented.health.toFixed(1)}`,
+  );
+
+  // --- 12. A violent crash wrecks the player car → explosion + WASTED.
+  await reset();
+  await page.evaluate(() => {
+    const g = window.__game;
+    const c = g.city.colliders.reduce((a, b) => (b.minX < a.minX ? b : a));
+    const car = g.vehicles.cars[g.vehicles.playerIndex];
+    car.x = c.minX - 2; car.z = (c.minZ + c.maxZ) / 2; car.heading = 0;
+    car.vx = 75; car.vz = 0; // a lethal high-speed impact
+  });
+  await page.waitForTimeout(300);
+  const wreck = await page.evaluate(() => ({
+    health: window.__game.carHealth,
+    wasted: window.__game.wasted,
+    wrecks: window.__game.vehicles.wreckCount,
+  }));
+  check(
+    'a high-speed crash wrecks the car (WASTED)',
+    wreck.health === 0 && wreck.wasted === true && wreck.wrecks >= 1,
+    JSON.stringify(wreck),
+  );
+
+  // --- 12b. An NPC car can wreck on its own (slams a wall) — player untouched.
+  await reset();
+  const npc = await page.evaluate(() => {
+    const g = window.__game;
+    const v = g.vehicles;
+    const c = g.city.colliders.reduce((a, b) => (b.minX < a.minX ? b : a));
+    const t = v.playerIndex === 0 ? 1 : 0; // any non-player car
+    v.cars[t].role = 'parked'; v.cars[t].lane = null;
+    v.cars[t].x = c.minX - 2; v.cars[t].z = (c.minZ + c.maxZ) / 2;
+    v.cars[t].vx = 80; v.cars[t].vz = 0; // hurled into the building
+    // Keep the player car well away so only the NPC wrecks.
+    const p = v.cars[v.playerIndex];
+    p.x = g.city.center.x; p.z = g.city.center.z; p.vx = p.vz = 0;
+    return { before: v.wreckCount };
+  });
+  await page.waitForTimeout(300);
+  const npcWrecked = await page.evaluate(() => ({
+    wrecks: window.__game.vehicles.wreckCount,
+    wasted: window.__game.wasted,
+    carHealth: window.__game.carHealth,
+  }));
+  check(
+    'an NPC car explodes when it takes enough damage (player untouched)',
+    npcWrecked.wrecks > npc.before && !npcWrecked.wasted && npcWrecked.carHealth === 100,
+    JSON.stringify(npcWrecked),
+  );
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();

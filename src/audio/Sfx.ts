@@ -101,6 +101,23 @@ export class Sfx {
   gib(): void {
     this.burst(0.18, 520, 0.32);
   }
+  /** A car wreck: a low, long noise boom with a pitch-down thud under it. */
+  explosion(): void {
+    this.burst(0.7, 240, 0.6);
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(140, t);
+    o.frequency.exponentialRampToValueAtTime(36, t + 0.5);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    o.connect(g);
+    g.connect(this.master);
+    o.start(t);
+    o.stop(t + 0.6);
+  }
   enterCar(): void {
     this.blip(340, 0.12);
   }

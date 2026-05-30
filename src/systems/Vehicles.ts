@@ -3,12 +3,15 @@ import type { City, Lane } from '../world/City';
 import { createRng } from '../core/rng';
 import { damp, lerp, angleLerp, safeApproachSpeed, leadTime } from '../core/math';
 import { makeCar } from '../render/Assets';
-import { resolveCircle, circleOverlap, nearestIndex } from './Collision';
+import { circleOverlap, nearestIndex } from './Collision';
+import { Debris } from './Debris';
 import {
   stepVehicle,
   speedOf,
   forwardSpeedOf,
   lateralSpeedOf,
+  crashDamage,
+  CAR_MAX_HEALTH,
   DEFAULT_VEHICLE,
   type VehicleInput,
 } from '../vehicles/VehicleModel';
@@ -38,6 +41,8 @@ interface Car {
   active: boolean; // police idle in a pool until a wanted level activates them
   lane: Lane | null;
   cruise: number;
+  health: number; // body integrity; explodes at 0 (see crashDamage)
+  color: number; // body colour, for the explosion debris
   group: THREE.Group;
   steerWheels: THREE.Object3D[];
   lightMat?: THREE.MeshStandardMaterial; // police roof light (flashed in render)
@@ -85,9 +90,14 @@ export class Vehicles {
   playerIndex: number | null = 0;
   private steer = 0;
   private flash = 0; // render-frame counter for the flashing police lights
+  private readonly debris: Debris;
+  private explosions = 0; // car wrecks since main last consumed them (for SFX)
+  private playerWreckPending = false; // player car blew up → main triggers WASTED
+  wreckCount = 0; // monotonic total wrecks (debug/telemetry)
 
   constructor(scene: THREE.Scene, city: City, trafficCount = 40, seed = 909) {
-    this.spawn(scene, makeCar(PLAYER_COLOR), city.center.x, city.center.z, 0, 'parked', null, 0);
+    this.debris = new Debris(scene);
+    this.spawn(scene, makeCar(PLAYER_COLOR), PLAYER_COLOR, city.center.x, city.center.z, 0, 'parked', null, 0);
 
     const rng = createRng(seed);
     for (let i = 0; i < trafficCount && city.lanes.length > 0; i++) {
@@ -95,11 +105,13 @@ export class Vehicles {
       const along = rng.range(-city.half, city.half);
       const x = lane.axis === 'x' ? along : lane.fixed;
       const z = lane.axis === 'z' ? along : lane.fixed;
-      this.spawn(scene, makeCar(rng.pick(TRAFFIC_COLORS)), x, z, 0, 'ai', lane, rng.range(10, 22));
+      const color = rng.pick(TRAFFIC_COLORS);
+      this.spawn(scene, makeCar(color), color, x, z, 0, 'ai', lane, rng.range(10, 22));
     }
 
     for (const spot of city.parkingSpots) {
-      this.spawn(scene, makeCar(rng.pick(TRAFFIC_COLORS)), spot.x, spot.z, spot.heading, 'parked', null, 0);
+      const color = rng.pick(TRAFFIC_COLORS);
+      this.spawn(scene, makeCar(color), color, spot.x, spot.z, spot.heading, 'parked', null, 0);
     }
 
     // A pool of idle police cars (hidden off-map) that a wanted level activates.
@@ -118,6 +130,7 @@ export class Vehicles {
       this.cars.push({
         x: 1e6, z: 1e6, heading: 0, vx: 0, vz: 0, px: 1e6, pz: 1e6, ph: 0,
         role: 'police', active: false, lane: null, cruise: 0,
+        health: CAR_MAX_HEALTH, color: POLICE_COLOR,
         group: mesh.group, steerWheels: mesh.steerWheels, lightMat,
       });
     }
@@ -126,6 +139,7 @@ export class Vehicles {
   private spawn(
     scene: THREE.Scene,
     mesh: { group: THREE.Group; steerWheels: THREE.Object3D[] },
+    color: number,
     x: number,
     z: number,
     heading: number,
@@ -138,7 +152,8 @@ export class Vehicles {
     scene.add(mesh.group);
     this.cars.push({
       x, z, heading, vx: 0, vz: 0, px: x, pz: z, ph: heading,
-      role, active: true, lane, cruise, group: mesh.group, steerWheels: mesh.steerWheels,
+      role, active: true, lane, cruise, health: CAR_MAX_HEALTH, color,
+      group: mesh.group, steerWheels: mesh.steerWheels,
     });
   }
 
@@ -177,6 +192,7 @@ export class Vehicles {
     }
 
     this.collide(city);
+    this.debris.update(dt);
 
     if (this.playerIndex !== null) {
       const c = this.cars[this.playerIndex];
@@ -188,6 +204,7 @@ export class Vehicles {
 
   /** Position meshes, interpolating between the previous and current step. */
   render(alpha: number): void {
+    this.debris.render(alpha);
     this.flash++;
     const blue = Math.floor(this.flash / 16) % 2 === 0;
     for (let i = 0; i < this.cars.length; i++) {
@@ -343,7 +360,7 @@ export class Vehicles {
     const hz = sp > 0.5 ? car.vz / sp : dz / gap;
     const fx = car.x + hx * POLICE_FEELER;
     const fz = car.z + hz * POLICE_FEELER;
-    const probe = resolveCircle(fx, fz, CAR_RADIUS, city.colliders);
+    const probe = city.grid.resolve(fx, fz, CAR_RADIUS);
     const nx = probe.x - fx;
     const nz = probe.z - fz;
     const nl = Math.hypot(nx, nz);
@@ -399,9 +416,10 @@ export class Vehicles {
   }
 
   private collide(city: City): void {
-    for (const car of this.cars) {
+    for (let i = 0; i < this.cars.length; i++) {
+      const car = this.cars[i];
       if (!car.active) continue;
-      const fixed = resolveCircle(car.x, car.z, CAR_RADIUS, city.colliders);
+      const fixed = city.grid.resolve(car.x, car.z, CAR_RADIUS);
       const px = fixed.x - car.x;
       const pz = fixed.z - car.z;
       const len = Math.hypot(px, pz);
@@ -414,6 +432,7 @@ export class Vehicles {
         if (into < 0) {
           car.vx -= into * nx;
           car.vz -= into * nz;
+          this.damage(car, i, -into, city); // wall impact ~ speed into the wall
         }
         car.vx *= 0.6;
         car.vz *= 0.6;
@@ -441,9 +460,72 @@ export class Vehicles {
           a.vz += imp * o.nz;
           b.vx -= imp * o.nx;
           b.vz -= imp * o.nz;
+          this.damage(a, i, -vn, city); // both take the closing speed as impact
+          this.damage(b, j, -vn, city);
         }
       }
     }
+  }
+
+  /** Apply crash damage to a car; wreck it (explode + recycle) when it hits 0. */
+  private damage(car: Car, i: number, impactSpeed: number, city: City): void {
+    const d = crashDamage(impactSpeed);
+    if (d <= 0 || car.health <= 0) return;
+    car.health -= d;
+    if (car.health <= 0) this.wreck(car, i, city);
+  }
+
+  /**
+   * A wrecked car explodes into chunks. The player's car triggers WASTED (flag
+   * read by main); any other car is recycled — relocated to a fresh lane/spot
+   * with full health, reusing its mesh (same pooling idea as the police).
+   */
+  private wreck(car: Car, i: number, city: City): void {
+    this.debris.explode(car.x, car.z, car.color, car.vx, car.vz);
+    this.explosions++;
+    this.wreckCount++;
+    car.health = 0;
+    if (i === this.playerIndex) {
+      this.playerWreckPending = true;
+      return;
+    }
+    if (car.role === 'ai' && city.lanes.length > 0) {
+      const lane = city.lanes[Math.floor(Math.random() * city.lanes.length)];
+      const along = (Math.random() * 2 - 1) * city.half;
+      car.x = lane.axis === 'x' ? along : lane.fixed;
+      car.z = lane.axis === 'z' ? along : lane.fixed;
+      car.lane = lane;
+    } else if (city.parkingSpots.length > 0) {
+      const spot = city.parkingSpots[Math.floor(Math.random() * city.parkingSpots.length)];
+      car.x = spot.x;
+      car.z = spot.z;
+      car.heading = spot.heading;
+    }
+    car.px = car.x;
+    car.pz = car.z;
+    car.vx = 0;
+    car.vz = 0;
+    car.health = CAR_MAX_HEALTH;
+  }
+
+  /** Number of car explosions since the last call (for one-shot SFX). */
+  consumeExplosions(): number {
+    const n = this.explosions;
+    this.explosions = 0;
+    return n;
+  }
+
+  /** True once if the player's car was wrecked since the last call. */
+  consumePlayerWreck(): boolean {
+    const w = this.playerWreckPending;
+    this.playerWreckPending = false;
+    return w;
+  }
+
+  /** Player car body integrity (0–100), or full health on foot. */
+  playerCarHealth(): number {
+    if (this.playerIndex === null) return CAR_MAX_HEALTH;
+    return Math.max(0, this.cars[this.playerIndex].health);
   }
 
   /** Index of the nearest enterable car within range, or -1. */
@@ -459,6 +541,7 @@ export class Vehicles {
     this.playerIndex = i;
     this.cars[i].role = 'parked';
     this.cars[i].lane = null;
+    this.cars[i].health = CAR_MAX_HEALTH; // a freshly carjacked car starts intact
   }
 
   exit(): void {
@@ -473,6 +556,7 @@ export class Vehicles {
     c.heading = c.ph = 0;
     c.vx = 0;
     c.vz = 0;
+    c.health = CAR_MAX_HEALTH;
   }
 
   playerPose(): { x: number; z: number; heading: number; speed: number } | null {

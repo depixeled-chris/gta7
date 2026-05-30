@@ -6,6 +6,8 @@ import {
   forwardSpeedOf,
   lateralSpeedOf,
   toKmh,
+  crashDamage,
+  CAR_MAX_HEALTH,
   type VehicleState,
   type VehicleInput,
 } from './VehicleModel';
@@ -20,6 +22,25 @@ const drive = (s: VehicleState, input: Partial<VehicleInput>, steps: number): Ve
   for (let i = 0; i < steps; i++) state = stepVehicle(state, full, DEFAULT_VEHICLE, dt);
   return state;
 };
+
+describe('crashDamage', () => {
+  it('shrugs off gentle bumps below the free-impact threshold', () => {
+    expect(crashDamage(0)).toBe(0);
+    expect(crashDamage(5)).toBe(0);
+    expect(crashDamage(-5)).toBe(0); // sign of closing velocity doesn't matter
+  });
+
+  it('scales with impact speed above the threshold', () => {
+    expect(crashDamage(16)).toBeGreaterThan(0);
+    expect(crashDamage(30)).toBeGreaterThan(crashDamage(16));
+  });
+
+  it('wrecks a full-health car in about two solid hits', () => {
+    const hit = crashDamage(20);
+    expect(hit).toBeLessThan(CAR_MAX_HEALTH); // one hard hit survives
+    expect(hit * 2).toBeGreaterThanOrEqual(CAR_MAX_HEALTH); // two wreck it
+  });
+});
 
 describe('stepVehicle', () => {
   it('accelerates forward under throttle', () => {

@@ -1,5 +1,6 @@
 import { createRng } from '../core/rng';
 import type { Aabb } from '../systems/Collision';
+import { SpatialGrid } from '../systems/SpatialGrid';
 
 export interface Building {
   cx: number; // footprint center
@@ -46,6 +47,8 @@ export interface City {
   laneOffset: number; // distance from road center to a lane
   buildings: Building[];
   colliders: Aabb[];
+  /** Spatial hash over `colliders`; the collision-query authority (see SpatialGrid). */
+  grid: SpatialGrid;
   lanes: Lane[];
   streetlights: Streetlight[];
   parkingSpots: ParkingSpot[];
@@ -104,6 +107,7 @@ export function generateCity(config: CityConfig = DEFAULT_CITY): City {
     laneOffset,
     buildings,
     colliders,
+    grid: new SpatialGrid(colliders, cell),
     lanes,
     streetlights,
     parkingSpots,

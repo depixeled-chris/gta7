@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import type { City } from '../world/City';
 import { createRng, type Rng } from '../core/rng';
 import { lerp, angleLerp } from '../core/math';
-import { resolveCircle } from './Collision';
 import { makePed } from '../render/Assets';
 import { Debris } from './Debris';
 
@@ -154,7 +153,7 @@ export class Pedestrians {
         ped.z -= Math.sin(ped.heading) * ped.speed * dt;
       }
 
-      const fixed = resolveCircle(ped.x, ped.z, RADIUS, city.colliders);
+      const fixed = city.grid.resolve(ped.x, ped.z, RADIUS);
       if (!ped.scared && (fixed.x !== ped.x || fixed.z !== ped.z)) ped.heading += Math.PI; // bounced off a wall
       ped.x = Math.max(-city.half, Math.min(city.half, fixed.x));
       ped.z = Math.max(-city.half, Math.min(city.half, fixed.z));
@@ -184,7 +183,7 @@ export class Pedestrians {
       ped.vx *= 0.82;
       ped.vz *= 0.82;
     }
-    const fixed = resolveCircle(ped.x + ped.vx * dt, ped.z + ped.vz * dt, RADIUS, city.colliders);
+    const fixed = city.grid.resolve(ped.x + ped.vx * dt, ped.z + ped.vz * dt, RADIUS);
     ped.x = Math.max(-city.half, Math.min(city.half, fixed.x));
     ped.z = Math.max(-city.half, Math.min(city.half, fixed.z));
 

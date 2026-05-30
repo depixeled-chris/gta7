@@ -29,12 +29,10 @@ Keep _Shipped_ compact (one line per item; collapse old detail). When in doubt, 
 ---
 
 ## 🟡 In progress / next up (top = do first)
-- [R001] 🔵 Spatial grid for collision — @maintainer · replaces per-car full-collider scan; biggest perf win + foundation for R004/R007 (per research)
-- [R002] 🔵 Damage model — @maintainer · cars take impact damage, explode when wrecked (player → WASTED, NPC → debris + respawn)
-- [R003] 🔬 Car profiles + mass — @maintainer · data-driven `CarProfile` (sports/truck/interceptor); see Researched
+- [R003] 🔬 Car profiles + mass — @maintainer · data-driven `CarProfile` (sports/truck/interceptor); see Researched. Damage model (R002) is in, so per-car mass/health now has a home.
+- [R004] 🔵 Proper car-car collision / no clipping — @maintainer · cars pass through each other at intersections; AI yielding (grid + damage now in place)
 
 ## 🔵 Queued (triaged, not started)
-- [R004] 🔵 Proper car-car collision / no clipping — @maintainer · cars pass through each other at intersections; needs R001 + AI yielding
 - [R005] 🔵 Street & building variety — @maintainer · more shapes/colours/props/street dressing
 - [R006] 🔵 In-game options menu — @maintainer · volume sliders (radio vs SFX), maybe quality toggle
 - [R007] 🔬 Chunked / streaming world — @maintainer · deterministic `generateChunk(cx,cz)` then load/unload; see Researched
@@ -62,5 +60,7 @@ synthesized SFX (gearbox engine, screech, gib, blips) · ~200 mph + MPH readout 
 [R012] radio ducks when you step out (+ distance fade) ·
 [R008] BUSTED screen when a cop pins you slow (resets the game) ·
 pedestrians fear the **car** (proximity + vector-dodge), not the on-foot player ·
-the original **zero-shot build** is published at `/gta7/zero-shot/` (frozen snapshot in `public/zero-shot/`).
+the original **zero-shot build** is published at `/gta7/zero-shot/` (frozen snapshot in `public/zero-shot/`) ·
+[R001] spatial-grid collision (uniform hash, equivalence unit-tested) — the single collision-query authority ·
+[R002] damage model: cars take crash damage & explode when wrecked (player → WASTED, NPC → recycled); HUD shows car integrity while driving.
 Requester credits: [README](README.md#requested-by-the-internet).

@@ -77,6 +77,34 @@ export class Debris {
     }
   }
 
+  /**
+   * A car wreck: a bigger, hotter burst than a pedestrian gib — larger chunks
+   * in the body colour mixed with ember orange, flung up and out from (x,z).
+   */
+  explode(x: number, z: number, body: number, carVx: number, carVz: number): void {
+    const EMBER = 0xff6a1a;
+    let spawned = 0;
+    for (const p of this.pieces) {
+      if (p.active) continue;
+      const size = 0.3 + Math.random() * 0.5;
+      p.active = true;
+      p.life = LIFE;
+      p.size = size;
+      p.x = p.px = x + (Math.random() - 0.5) * 1.4;
+      p.y = p.py = 0.6 + Math.random() * 1.4;
+      p.z = p.pz = z + (Math.random() - 0.5) * 1.4;
+      p.vx = carVx * 0.4 + (Math.random() - 0.5) * 12;
+      p.vz = carVz * 0.4 + (Math.random() - 0.5) * 12;
+      p.vy = 6 + Math.random() * 8;
+      p.spinX = (Math.random() - 0.5) * 20;
+      p.spinZ = (Math.random() - 0.5) * 20;
+      p.mat.color.setHex(Math.random() < 0.4 ? EMBER : Math.random() < 0.3 ? DARK : body);
+      p.mesh.scale.setScalar(size);
+      p.mesh.visible = true;
+      if (++spawned >= PER_BURST * 2) break;
+    }
+  }
+
   update(dt: number): void {
     for (const p of this.pieces) {
       if (!p.active) continue;
