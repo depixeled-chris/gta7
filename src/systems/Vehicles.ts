@@ -59,6 +59,9 @@ export interface PedImpact {
   speed: number; // car speed at the moment of contact (m/s)
   nx: number; // knockback direction (from car toward pedestrian)
   nz: number;
+  vx: number; // the car's velocity (for flinging a pedestrian along it)
+  vz: number;
+  isPlayer: boolean; // was it the player's car (for scoring run-overs)
 }
 
 export class Vehicles {
@@ -205,18 +208,29 @@ export class Vehicles {
     if (Math.hypot(car.vx, car.vz) > 0.5) car.heading = Math.atan2(-car.vz, car.vx);
   }
 
-  /** The fastest car currently overlapping a pedestrian at (px,pz), or null. */
-  pedestrianImpact(px: number, pz: number): PedImpact | null {
+  /**
+   * The fastest car overlapping a point at (px,pz), or null. When `includePlayer`
+   * is false the player's own car is skipped (used for damage to the on-foot
+   * player); when true it counts too (used for running pedestrians over).
+   */
+  pedestrianImpact(px: number, pz: number, includePlayer = false): PedImpact | null {
     let best: PedImpact | null = null;
     for (let i = 0; i < this.cars.length; i++) {
-      if (i === this.playerIndex) continue;
+      if (!includePlayer && i === this.playerIndex) continue;
       const c = this.cars[i];
       const dist = Math.hypot(c.x - px, c.z - pz);
       if (dist >= PED_REACH) continue;
       const speed = Math.hypot(c.vx, c.vz);
       if (!best || speed > best.speed) {
         const d = dist || 1e-3;
-        best = { speed, nx: (px - c.x) / d, nz: (pz - c.z) / d };
+        best = {
+          speed,
+          nx: (px - c.x) / d,
+          nz: (pz - c.z) / d,
+          vx: c.vx,
+          vz: c.vz,
+          isPlayer: i === this.playerIndex,
+        };
       }
     }
     return best;

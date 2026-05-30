@@ -169,13 +169,16 @@ function checkPedestrianDamage(): void {
   pedContact = contact;
 }
 
+// Any car (including the one you're driving) moving fast enough flattens peds.
+const runOverQuery = (x: number, z: number) => vehicles.pedestrianImpact(x, z, true);
+
 function update(dt: number): void {
   player.savePrev();
 
   if (wasted) {
     wastedTimer -= dt;
     vehicles.update(city, dt, null, null);
-    peds.update(city, dt);
+    peds.update(city, dt, runOverQuery);
     if (wastedTimer <= 0) respawn();
     controls.endFrame();
     return;
@@ -192,7 +195,7 @@ function update(dt: number): void {
     checkPedestrianDamage();
   }
 
-  peds.update(city, dt);
+  peds.update(city, dt, runOverQuery);
   controls.endFrame();
 }
 
@@ -248,6 +251,7 @@ function render(alpha: number, frameDt: number): void {
 
   const speedKmh = mode === 'driving' ? toKmh(vehicles.playerForwardSpeed()) : toKmh(player.speed);
   hud.update(speedKmh, mode, active, vehicles.positions(), health, wasted);
+  hud.setRunOverCount(peds.runOverCount);
   env.render();
 }
 
@@ -257,8 +261,10 @@ declare global {
       readonly mode: Mode;
       readonly health: number;
       readonly wasted: boolean;
+      readonly runOverCount: number;
       vehicles: Vehicles;
       player: Player;
+      peds: Pedestrians;
       city: typeof city;
     };
   }
@@ -273,8 +279,12 @@ window.__game = {
   get wasted() {
     return wasted;
   },
+  get runOverCount() {
+    return peds.runOverCount;
+  },
   vehicles,
   player,
+  peds,
   city,
 };
 

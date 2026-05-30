@@ -18,6 +18,7 @@
 - **Carjack anything** — walk up to *any* car — your spawn ride, ambient traffic, or one of the cars parked along the curbs — and get in.
 - **Physical cars** — solid buildings and momentum-based car-on-car impacts: ram traffic and it gets shoved off course.
 - **Traffic that brakes for you… mostly** — stand in the road and oncoming cars slow and stop; dart out from inside their stopping distance and they can't help it. Get hit and you lose health; run out and it's **WASTED**, then you respawn.
+- **Run people over** — flatten a pedestrian at speed and they burst into a shower of little cubes; your tally shows on the HUD. (Ambient traffic is lethal too, but only your kills count.)
 - **Ambient life** — traffic looping the avenues and pedestrians milling the streets.
 - **Plays on mobile** — keyboard on desktop, an on-screen analog joystick + action buttons on touch devices (auto-detected), with quality scaled down for phone GPUs.
 - **HUD + live minimap** — speedometer, health, mode indicator, and a top-down radar of the city and traffic.
@@ -27,6 +28,7 @@
 ![A streetlight casting a pool of light over the road](docs/streetlights.png)
 ![The WASTED screen after being run over](docs/wasted.png)
 ![Touch controls on a mobile device](docs/mobile.png)
+![Running a pedestrian over — they explode into blocks](docs/runover.png)
 
 ## Play it
 
@@ -63,6 +65,18 @@ See [`CLAUDE.md`](CLAUDE.md) for architecture — the short version: gameplay lo
 ## Tech
 
 [Three.js](https://threejs.org/) · [TypeScript](https://www.typescriptlang.org/) · [Vite](https://vitejs.dev/) · [Vitest](https://vitest.dev/) · [Playwright](https://playwright.dev/) (smoke test)
+
+## Requested by the internet
+
+This whole thing is a community-driven dare, built live from requests. Credit where it's due:
+
+- **The original dare** — [u/Mr_Versatile](https://www.reddit.com/r/ClaudeAI/comments/1tqz2se/lets_check_opus_48_how_good_is_it/), *"Let's check Opus 4.8 — how good is it?"*
+- **Streetlights, parked cars, headlights, powerslides, faster cars, health + WASTED, traffic that brakes for you, smoother framerate, no-pinch-zoom, this demo link** — u/daemon-electricity
+- **Mobile / touch support** — u/Specialist_Juce879
+- **Being able to run pedestrians over** — u/Syrus_101 (*"I couldn't run over anyone. Unacceptable."*)
+- **Pedestrians exploding into tiny block parts** — u/jrobertson50
+
+Got a request? It probably came from [the thread](https://www.reddit.com/r/ClaudeAI/comments/1tqz2se/lets_check_opus_48_how_good_is_it/).
 
 ## License
 

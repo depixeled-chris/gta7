@@ -18,6 +18,7 @@ export class HUD {
   private readonly toWorld: number;
   private readonly healthFill: HTMLElement;
   private readonly wastedEl: HTMLElement;
+  private readonly scoreEl: HTMLElement;
 
   constructor(container: HTMLElement, private readonly city: City, touch = false) {
     this.toWorld = MAP_SIZE / city.extent;
@@ -56,6 +57,13 @@ export class HUD {
     this.healthFill.style.cssText = 'height:100%;width:100%;background:#54ff84;transition:width .1s linear;';
     healthTrack.appendChild(this.healthFill);
     root.appendChild(healthTrack);
+
+    this.scoreEl = document.createElement('div');
+    this.scoreEl.style.cssText =
+      'position:absolute;left:50%;top:12px;transform:translateX(-50%);font-size:13px;' +
+      'opacity:.85;padding:5px 12px;background:rgba(10,14,24,.5);border-radius:6px;';
+    this.scoreEl.textContent = '🚶 0';
+    root.appendChild(this.scoreEl);
 
     this.wastedEl = document.createElement('div');
     this.wastedEl.textContent = 'WASTED';
@@ -171,5 +179,9 @@ export class HUD {
     ctx.lineTo(px + fz * 4 - fx * 3, py - fx * 4 - fz * 3);
     ctx.closePath();
     ctx.fill();
+  }
+
+  setRunOverCount(n: number): void {
+    this.scoreEl.textContent = `🚶 ${n}`;
   }
 }

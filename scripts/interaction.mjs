@@ -214,6 +214,32 @@ try {
     JSON.stringify(deathRes),
   );
 
+  // --- 6. Run over a pedestrian: drive through one at speed, count goes up.
+  await reset();
+  const ranOver = await page.evaluate(() => {
+    const g = window.__game;
+    const v = g.vehicles;
+    const p = v.cars[v.playerIndex];
+    // Put a pedestrian dead ahead (heading 0 = +X) and stop the others nearby.
+    const ped = g.peds.peds[0];
+    ped.hit = false; ped.y = 0; ped.tumble = 0;
+    ped.x = p.x + 7; ped.z = p.z;
+    p.heading = 0; p.vx = 22; p.vz = 0;
+    return { before: g.runOverCount };
+  });
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(900);
+  await page.keyboard.up('KeyW');
+  const splat = await page.evaluate(() => ({
+    count: window.__game.runOverCount,
+    down: window.__game.peds.peds[0].hit,
+  }));
+  check(
+    'driving into a pedestrian runs them over',
+    splat.count > ranOver.before && splat.down,
+    `count ${ranOver.before} -> ${splat.count}, downed=${splat.down}`,
+  );
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();
