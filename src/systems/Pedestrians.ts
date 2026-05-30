@@ -44,7 +44,7 @@ const GIB_SPEED = 9; // m/s (~32 km/h): at/above this they explode; between, jus
 const SHOVE_TIME = 1.6; // seconds knocked over before getting back up
 const GIB_TIME = 3.5; // seconds gibbed before respawning elsewhere
 const GRAVITY = 18;
-const FEAR_RADIUS = 6; // how close the on-foot player must be to scare a pedestrian
+const FEAR_RADIUS = 9; // how close the on-foot player must be to scare a pedestrian
 const FLEE_SPEED = 5; // scared pedestrians scurry faster than they stroll
 
 /**
@@ -200,9 +200,9 @@ export class Pedestrians {
       let sz = 0;
       let roll = 0;
       if (ped.scared) {
-        sx = Math.sin(this.tick * 0.8 + ped.z) * 0.05;
-        sz = Math.cos(this.tick * 0.8 + ped.x) * 0.05;
-        roll = Math.sin(this.tick * 1.3 + ped.x) * 0.13;
+        sx = Math.sin(this.tick * 1.1 + ped.z) * 0.18;
+        sz = Math.cos(this.tick * 1.3 + ped.x) * 0.18;
+        roll = Math.sin(this.tick * 1.7 + ped.x) * 0.4; // a real visible shudder
       }
       ped.group.position.set(
         lerp(ped.px, ped.x, alpha) + sx,
