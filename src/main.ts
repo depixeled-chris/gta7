@@ -10,6 +10,7 @@ import { Pedestrians } from './systems/Pedestrians';
 import { HUD, type Mode } from './ui/HUD';
 import { Controls } from './core/Controls';
 import { GameLoop } from './core/GameLoop';
+import { lerp, angleLerp } from './core/math';
 import { toKmh, type VehicleInput } from './vehicles/VehicleModel';
 
 /** Touch UI + lower quality on coarse-pointer devices; `?touch=1|0` forces it. */
@@ -21,7 +22,7 @@ function isTouchDevice(): boolean {
 }
 
 const FOOT_RADIUS = 0.4;
-const ENTER_DISTANCE = 5;
+const ENTER_DISTANCE = 6; // generous so curbside parked cars are easy to get into
 
 const container = document.getElementById('app')!;
 const touch = isTouchDevice();
@@ -169,6 +170,8 @@ function checkPedestrianDamage(): void {
 }
 
 function update(dt: number): void {
+  player.savePrev();
+
   if (wasted) {
     wastedTimer -= dt;
     vehicles.update(city, dt, null, null);
@@ -221,19 +224,27 @@ function updateHeadlights(pose: { x: number; z: number; heading: number } | null
   }
 }
 
-function render(): void {
-  avatar.position.set(player.x, 0, player.z);
-  avatar.rotation.y = player.heading;
+function render(alpha: number, frameDt: number): void {
+  // Interpolate every moving thing between its previous and current physics
+  // step so motion stays smooth regardless of how steps line up with frames.
+  vehicles.render(alpha);
+  peds.render(alpha);
+
+  const ax = lerp(player.px, player.x, alpha);
+  const az = lerp(player.pz, player.z, alpha);
+  const ah = angleLerp(player.ph, player.heading, alpha);
+  avatar.position.set(ax, 0, az);
+  avatar.rotation.y = ah;
   avatar.visible = mode === 'foot';
 
-  const pose = vehicles.playerPose();
-  const active = mode === 'driving' && pose ? pose : player;
+  const carPose = vehicles.playerPoseInterp(alpha);
+  const active =
+    mode === 'driving' && carPose ? carPose : { x: ax, z: az, heading: ah, speed: player.speed };
   lamp.position.set(active.x, 3.5, active.z);
   updateStreetlightPool(active.x, active.z);
-  updateHeadlights(mode === 'driving' && pose ? pose : null);
+  updateHeadlights(mode === 'driving' && carPose ? carPose : null);
 
-  const dt = 1 / 60;
-  follow.update(active.x, active.z, active.heading, mode === 'driving' ? CAR_CAM : FOOT_CAM, dt);
+  follow.update(active.x, active.z, active.heading, mode === 'driving' ? CAR_CAM : FOOT_CAM, frameDt);
 
   const speedKmh = mode === 'driving' ? toKmh(vehicles.playerForwardSpeed()) : toKmh(player.speed);
   hud.update(speedKmh, mode, active, vehicles.positions(), health, wasted);

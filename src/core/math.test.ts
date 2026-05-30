@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clamp, lerp, damp, angleDelta, moveToward, safeApproachSpeed, stickVector } from './math';
+import { clamp, lerp, damp, angleDelta, angleLerp, moveToward, safeApproachSpeed, stickVector } from './math';
 
 describe('clamp', () => {
   it('bounds values to the range', () => {
@@ -33,6 +33,18 @@ describe('angleDelta', () => {
     expect(angleDelta(0, Math.PI / 2)).toBeCloseTo(Math.PI / 2);
     // From 0.1 rad to -0.1 rad (i.e. just below 2PI) the short way is negative.
     expect(angleDelta(0.1, Math.PI * 2 - 0.1)).toBeCloseTo(-0.2, 5);
+  });
+});
+
+describe('angleLerp', () => {
+  it('interpolates along the shortest arc across the wrap', () => {
+    // From 0.1 toward (2PI - 0.1): shortest path is backwards through 0.
+    const r = angleLerp(0.1, Math.PI * 2 - 0.1, 0.5);
+    expect(Math.cos(r)).toBeCloseTo(1, 5); // halfway lands at angle ~0
+  });
+  it('returns endpoints at t=0 and t=1', () => {
+    expect(angleLerp(0.3, 1.2, 0)).toBeCloseTo(0.3);
+    expect(angleLerp(0.3, 1.2, 1)).toBeCloseTo(1.2);
   });
 });
 

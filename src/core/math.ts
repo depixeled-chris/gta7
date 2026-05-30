@@ -18,6 +18,9 @@ export const angleDelta = (a: number, b: number): number => {
   return d;
 };
 
+/** Interpolate between two angles along the shortest arc (for render smoothing). */
+export const angleLerp = (a: number, b: number, t: number): number => a + angleDelta(a, b) * t;
+
 export const moveToward = (current: number, target: number, maxDelta: number): number => {
   const diff = target - current;
   if (Math.abs(diff) <= maxDelta) return target;

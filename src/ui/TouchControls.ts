@@ -24,6 +24,17 @@ export class TouchControls {
   private readonly radius = 58;
 
   constructor(root: HTMLElement) {
+    // Kill browser pinch/double-tap zoom that touch-action alone misses on iOS
+    // Safari. Multi-finger touchmove and Safari gesture events would otherwise
+    // zoom/pan the whole page mid-game.
+    const block = (e: Event): void => e.preventDefault();
+    window.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, {
+      passive: false,
+    });
+    document.addEventListener('gesturestart', block);
+    document.addEventListener('gesturechange', block);
+    document.addEventListener('dblclick', block);
+
     root.style.cssText =
       'position:absolute;inset:0;pointer-events:none;z-index:5;' +
       'touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;';

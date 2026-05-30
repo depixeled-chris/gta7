@@ -14,6 +14,17 @@ export class Player {
   z = 0;
   heading = 0;
   speed = 0;
+  // Previous-step pose for render interpolation.
+  px = 0;
+  pz = 0;
+  ph = 0;
+
+  /** Snapshot the current pose as the previous one (call once per fixed step). */
+  savePrev(): void {
+    this.px = this.x;
+    this.pz = this.z;
+    this.ph = this.heading;
+  }
 
   /** dirX/dirZ: desired world-space move direction (need not be normalized). */
   update(dirX: number, dirZ: number, running: boolean, dt: number): void {

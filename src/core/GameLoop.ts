@@ -3,6 +3,12 @@
  * simulation is stable and reproducible regardless of display refresh rate;
  * rendering happens once per animation frame. The accumulator is clamped to
  * avoid the "spiral of death" after a tab stall.
+ *
+ * `render` receives `alpha` — the fraction of the next step already
+ * accumulated (0..1) — so visuals can interpolate between the previous and
+ * current physics state and stay smooth when the frame rate doesn't divide
+ * evenly into the step. It also gets the real `frameDt` for frame-rate-
+ * independent camera smoothing.
  */
 export class GameLoop {
   private readonly step: number;
@@ -13,7 +19,7 @@ export class GameLoop {
 
   constructor(
     private readonly update: (dt: number) => void,
-    private readonly render: () => void,
+    private readonly render: (alpha: number, frameDt: number) => void,
     stepHz = 60,
   ) {
     this.step = 1 / stepHz;
@@ -41,7 +47,7 @@ export class GameLoop {
       this.update(this.step);
       this.accumulator -= this.step;
     }
-    this.render();
+    this.render(this.accumulator / this.step, frameTime);
     requestAnimationFrame(this.frame);
   };
 }

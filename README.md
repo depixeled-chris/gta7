@@ -1,8 +1,12 @@
 # GTA 7 🚗🌃
 
+### ▶ [Play the live demo](https://depixeled-chris.github.io/gta7/)
+
 > A from-scratch, browser-based **GTA-style 3D open-world vertical slice** — built in TypeScript + Three.js in a single session, because a Reddit thread dared a new model to.
 >
 > No, it is not Grand Theft Auto VII. It's a procedural neon city you can drive around at night, hop out of the car, and wander on foot. The name is the joke.
+>
+> Works on desktop (keyboard) and mobile (on-screen touch controls).
 
 ![GTA 7 — driving through the procedural night city](docs/screenshot.png)
 

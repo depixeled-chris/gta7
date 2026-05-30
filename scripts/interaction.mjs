@@ -114,6 +114,36 @@ try {
     `target moved from x=${shove.startX.toFixed(2)} to ${shoved.x.toFixed(2)}`,
   );
 
+  // --- 3b. Carjack a curbside PARKED car (not just moving traffic).
+  await reset();
+  await page.keyboard.press('KeyF'); // exit spawn car -> on foot
+  await page.waitForTimeout(200);
+  const park = await page.evaluate(() => {
+    const g = window.__game;
+    const v = g.vehicles;
+    const cars = v.cars;
+    // A parked car away from the spawn point (i.e. a curbside one, not the car we just left).
+    let j = -1;
+    for (let i = 0; i < cars.length; i++) {
+      const c = cars[i];
+      if (c.role === 'parked' && Math.hypot(c.x - g.city.center.x, c.z - g.city.center.z) > 12) { j = i; break; }
+    }
+    g.player.x = cars[j].x - 1.5;
+    g.player.z = cars[j].z;
+    return { j };
+  });
+  await page.keyboard.press('KeyF'); // get in
+  await page.waitForTimeout(200);
+  const parked = await page.evaluate(() => ({
+    mode: window.__game.mode,
+    idx: window.__game.vehicles.playerIndex,
+  }));
+  check(
+    'can enter a curbside parked car',
+    parked.mode === 'driving' && parked.idx === park.j,
+    `now driving index ${parked.idx} (target ${park.j})`,
+  );
+
   // --- 4. Cars brake for a pedestrian standing in the road.
   await reset();
   await page.keyboard.press('KeyF'); // on foot

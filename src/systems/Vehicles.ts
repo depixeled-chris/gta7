@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { City, Lane } from '../world/City';
 import { createRng } from '../core/rng';
-import { damp, safeApproachSpeed } from '../core/math';
+import { damp, lerp, angleLerp, safeApproachSpeed } from '../core/math';
 import { makeCar } from '../render/Assets';
 import { resolveCircle, circleOverlap, nearestIndex } from './Collision';
 import {
@@ -29,6 +29,10 @@ interface Car {
   heading: number;
   vx: number;
   vz: number;
+  // Previous-step pose, for render interpolation between fixed steps.
+  px: number;
+  pz: number;
+  ph: number;
   role: Role;
   lane: Lane | null;
   cruise: number;
@@ -63,60 +67,39 @@ export class Vehicles {
   private steer = 0;
 
   constructor(scene: THREE.Scene, city: City, trafficCount = 40, seed = 909) {
-    const start = makeCar(PLAYER_COLOR);
-    start.group.position.set(city.center.x, 0, city.center.z);
-    scene.add(start.group);
-    this.cars.push({
-      x: city.center.x,
-      z: city.center.z,
-      heading: 0,
-      vx: 0,
-      vz: 0,
-      role: 'parked',
-      lane: null,
-      cruise: 0,
-      group: start.group,
-      steerWheels: start.steerWheels,
-    });
+    this.spawn(scene, makeCar(PLAYER_COLOR), city.center.x, city.center.z, 0, 'parked', null, 0);
 
     const rng = createRng(seed);
     for (let i = 0; i < trafficCount && city.lanes.length > 0; i++) {
       const lane = rng.pick(city.lanes);
-      const car = makeCar(rng.pick(TRAFFIC_COLORS));
-      scene.add(car.group);
       const along = rng.range(-city.half, city.half);
-      this.cars.push({
-        x: lane.axis === 'x' ? along : lane.fixed,
-        z: lane.axis === 'z' ? along : lane.fixed,
-        heading: 0,
-        vx: 0,
-        vz: 0,
-        role: 'ai',
-        lane,
-        cruise: rng.range(10, 22),
-        group: car.group,
-        steerWheels: car.steerWheels,
-      });
+      const x = lane.axis === 'x' ? along : lane.fixed;
+      const z = lane.axis === 'z' ? along : lane.fixed;
+      this.spawn(scene, makeCar(rng.pick(TRAFFIC_COLORS)), x, z, 0, 'ai', lane, rng.range(10, 22));
     }
 
     for (const spot of city.parkingSpots) {
-      const car = makeCar(rng.pick(TRAFFIC_COLORS));
-      car.group.position.set(spot.x, 0, spot.z);
-      car.group.rotation.y = spot.heading;
-      scene.add(car.group);
-      this.cars.push({
-        x: spot.x,
-        z: spot.z,
-        heading: spot.heading,
-        vx: 0,
-        vz: 0,
-        role: 'parked',
-        lane: null,
-        cruise: 0,
-        group: car.group,
-        steerWheels: car.steerWheels,
-      });
+      this.spawn(scene, makeCar(rng.pick(TRAFFIC_COLORS)), spot.x, spot.z, spot.heading, 'parked', null, 0);
     }
+  }
+
+  private spawn(
+    scene: THREE.Scene,
+    mesh: { group: THREE.Group; steerWheels: THREE.Object3D[] },
+    x: number,
+    z: number,
+    heading: number,
+    role: Role,
+    lane: Lane | null,
+    cruise: number,
+  ): void {
+    mesh.group.position.set(x, 0, z);
+    mesh.group.rotation.y = heading;
+    scene.add(mesh.group);
+    this.cars.push({
+      x, z, heading, vx: 0, vz: 0, px: x, pz: z, ph: heading,
+      role, lane, cruise, group: mesh.group, steerWheels: mesh.steerWheels,
+    });
   }
 
   update(
@@ -125,6 +108,13 @@ export class Vehicles {
     input: VehicleInput | null,
     pedestrian: { x: number; z: number } | null = null,
   ): void {
+    // Snapshot the pre-step pose so render() can interpolate up to it.
+    for (const c of this.cars) {
+      c.px = c.x;
+      c.pz = c.z;
+      c.ph = c.heading;
+    }
+
     if (this.playerIndex !== null && input) {
       this.steer = input.steer;
       const pc = this.cars[this.playerIndex];
@@ -151,7 +141,18 @@ export class Vehicles {
       c.x = Math.max(-b, Math.min(b, c.x));
       c.z = Math.max(-b, Math.min(b, c.z));
     }
-    this.syncMeshes();
+  }
+
+  /** Position meshes, interpolating between the previous and current step. */
+  render(alpha: number): void {
+    for (let i = 0; i < this.cars.length; i++) {
+      const c = this.cars[i];
+      c.group.position.set(lerp(c.px, c.x, alpha), 0, lerp(c.pz, c.z, alpha));
+      c.group.rotation.y = angleLerp(c.ph, c.heading, alpha);
+      if (i === this.playerIndex) {
+        for (const w of c.steerWheels) w.rotation.y = this.steer * 0.5;
+      }
+    }
   }
 
   private driveAi(
@@ -201,6 +202,7 @@ export class Vehicles {
     car.vz = damp(car.vz, desZ, rate, dt);
     car.x += car.vx * dt;
     car.z += car.vz * dt;
+    if (Math.hypot(car.vx, car.vz) > 0.5) car.heading = Math.atan2(-car.vz, car.vx);
   }
 
   /** The fastest car currently overlapping a pedestrian at (px,pz), or null. */
@@ -225,6 +227,7 @@ export class Vehicles {
     car.vz = damp(car.vz, 0, PARK_FRICTION, dt);
     car.x += car.vx * dt;
     car.z += car.vz * dt;
+    if (Math.hypot(car.vx, car.vz) > 0.5) car.heading = Math.atan2(-car.vz, car.vx);
   }
 
   private collide(city: City): void {
@@ -273,22 +276,6 @@ export class Vehicles {
     }
   }
 
-  private syncMeshes(): void {
-    for (let i = 0; i < this.cars.length; i++) {
-      const car = this.cars[i];
-      car.group.position.set(car.x, 0, car.z);
-      // The player's car points where it's steered (so drifts read correctly);
-      // everyone else faces their travel direction.
-      if (i !== this.playerIndex && Math.hypot(car.vx, car.vz) > 0.5) {
-        car.heading = Math.atan2(-car.vz, car.vx);
-      }
-      car.group.rotation.y = car.heading;
-      if (i === this.playerIndex) {
-        for (const w of car.steerWheels) w.rotation.y = this.steer * 0.5;
-      }
-    }
-  }
-
   /** Index of the nearest enterable car within range, or -1. */
   nearest(x: number, z: number, maxDist: number): number {
     const points = this.cars.map((c, i) =>
@@ -311,9 +298,9 @@ export class Vehicles {
   resetPlayer(city: City): void {
     if (this.playerIndex === null) return;
     const c = this.cars[this.playerIndex];
-    c.x = city.center.x;
-    c.z = city.center.z;
-    c.heading = 0;
+    c.x = c.px = city.center.x; // snap prev too, so render doesn't slide across the map
+    c.z = c.pz = city.center.z;
+    c.heading = c.ph = 0;
     c.vx = 0;
     c.vz = 0;
   }
@@ -322,6 +309,18 @@ export class Vehicles {
     if (this.playerIndex === null) return null;
     const c = this.cars[this.playerIndex];
     return { x: c.x, z: c.z, heading: c.heading, speed: speedOf(c) };
+  }
+
+  /** Player-car pose interpolated between the last two steps, for the camera. */
+  playerPoseInterp(alpha: number): { x: number; z: number; heading: number; speed: number } | null {
+    if (this.playerIndex === null) return null;
+    const c = this.cars[this.playerIndex];
+    return {
+      x: lerp(c.px, c.x, alpha),
+      z: lerp(c.pz, c.z, alpha),
+      heading: angleLerp(c.ph, c.heading, alpha),
+      speed: speedOf(c),
+    };
   }
 
   /** Signed forward speed of the player's car (for the HUD), or 0 on foot. */
