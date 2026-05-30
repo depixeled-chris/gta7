@@ -2,6 +2,8 @@
 
 ### ▶ [Play the live demo](https://depixeled-chris.github.io/gta7/)
 
+🕹️ Curious where it started? [Play the original zero-shot version](https://depixeled-chris.github.io/gta7/zero-shot/) — the first single-shot build, before any of the community feature requests below.
+
 > A from-scratch, browser-based **GTA-style 3D open-world vertical slice** — built in TypeScript + Three.js in a single session, because a Reddit thread dared a new model to.
 >
 > No, it is not Grand Theft Auto VII. It's a procedural neon city you can drive around at night, hop out of the car, and wander on foot. The name is the joke.

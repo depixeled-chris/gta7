@@ -61,5 +61,6 @@ synthesized SFX (gearbox engine, screech, gib, blips) · ~200 mph + MPH readout 
 [R010] engine idles audibly at a parked car & fades as you walk off · [R011] footsteps on foot ·
 [R012] radio ducks when you step out (+ distance fade) ·
 [R008] BUSTED screen when a cop pins you slow (resets the game) ·
-pedestrians fear the **car** (proximity + vector-dodge), not the on-foot player.
+pedestrians fear the **car** (proximity + vector-dodge), not the on-foot player ·
+the original **zero-shot build** is published at `/gta7/zero-shot/` (frozen snapshot in `public/zero-shot/`).
 Requester credits: [README](README.md#requested-by-the-internet).
