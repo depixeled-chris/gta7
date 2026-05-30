@@ -18,6 +18,7 @@ interface Ped {
   speed: number;
   turnTimer: number;
   color: number; // shirt colour, reused for gib cubes
+  scared: boolean; // fleeing the on-foot player (trembles + runs away)
   vx: number; // velocity while shoved
   vz: number;
   vy: number;
@@ -43,6 +44,8 @@ const GIB_SPEED = 9; // m/s (~32 km/h): at/above this they explode; between, jus
 const SHOVE_TIME = 1.6; // seconds knocked over before getting back up
 const GIB_TIME = 3.5; // seconds gibbed before respawning elsewhere
 const GRAVITY = 18;
+const FEAR_RADIUS = 6; // how close the on-foot player must be to scare a pedestrian
+const FLEE_SPEED = 5; // scared pedestrians scurry faster than they stroll
 
 /**
  * Wandering pedestrians with a three-state life: walking, shoved (clipped at
@@ -54,6 +57,7 @@ export class Pedestrians {
   private readonly peds: Ped[] = [];
   private readonly rng: Rng;
   private readonly debris: Debris;
+  private tick = 0; // render-frame counter for the fear tremble
   runOverCount = 0;
 
   constructor(scene: THREE.Scene, private readonly city: City, count = 60, seed = 333) {
@@ -67,7 +71,7 @@ export class Pedestrians {
       const z = this.rng.range(-city.half, city.half);
       const heading = this.rng.range(0, Math.PI * 2);
       this.peds.push({
-        state: 'walk', x, z, y: 0, heading, tumble: 0, color,
+        state: 'walk', x, z, y: 0, heading, tumble: 0, color, scared: false,
         speed: this.rng.range(1, 2.2),
         turnTimer: this.rng.range(1, 5),
         vx: 0, vz: 0, vy: 0, timer: 0,
@@ -77,7 +81,7 @@ export class Pedestrians {
     }
   }
 
-  update(city: City, dt: number, impactAt?: ImpactQuery): void {
+  update(city: City, dt: number, impactAt?: ImpactQuery, threat?: { x: number; z: number } | null): void {
     for (const ped of this.peds) {
       ped.px = ped.x;
       ped.pz = ped.z;
@@ -95,16 +99,35 @@ export class Pedestrians {
         continue;
       }
 
-      ped.turnTimer -= dt;
-      if (ped.turnTimer <= 0) {
-        ped.heading += (Math.sin(ped.x * 12.9 + ped.z * 78.2) * 0.5 + 0.5) * Math.PI - Math.PI / 2;
-        ped.turnTimer = 2 + ((ped.x * 0.37 + ped.z * 0.91) % 3);
+      // Panic if the on-foot player gets close: flee directly away (and tremble,
+      // in render). Otherwise wander.
+      ped.scared = false;
+      if (threat) {
+        const ax = ped.x - threat.x;
+        const az = ped.z - threat.z;
+        const fd = Math.hypot(ax, az);
+        if (fd < FEAR_RADIUS) {
+          ped.scared = true;
+          const ux = fd > 1e-3 ? ax / fd : 1;
+          const uz = fd > 1e-3 ? az / fd : 0;
+          ped.heading = Math.atan2(-uz, ux); // face the way they're bolting
+          ped.x += ux * FLEE_SPEED * dt;
+          ped.z += uz * FLEE_SPEED * dt;
+        }
       }
 
-      const nx = ped.x + Math.cos(ped.heading) * ped.speed * dt;
-      const nz = ped.z - Math.sin(ped.heading) * ped.speed * dt;
-      const fixed = resolveCircle(nx, nz, RADIUS, city.colliders);
-      if (fixed.x !== nx || fixed.z !== nz) ped.heading += Math.PI; // bounced off a wall
+      if (!ped.scared) {
+        ped.turnTimer -= dt;
+        if (ped.turnTimer <= 0) {
+          ped.heading += (Math.sin(ped.x * 12.9 + ped.z * 78.2) * 0.5 + 0.5) * Math.PI - Math.PI / 2;
+          ped.turnTimer = 2 + ((ped.x * 0.37 + ped.z * 0.91) % 3);
+        }
+        ped.x += Math.cos(ped.heading) * ped.speed * dt;
+        ped.z -= Math.sin(ped.heading) * ped.speed * dt;
+      }
+
+      const fixed = resolveCircle(ped.x, ped.z, RADIUS, city.colliders);
+      if (!ped.scared && (fixed.x !== ped.x || fixed.z !== ped.z)) ped.heading += Math.PI; // bounced off a wall
       ped.x = Math.max(-city.half, Math.min(city.half, fixed.x));
       ped.z = Math.max(-city.half, Math.min(city.half, fixed.z));
 
@@ -169,14 +192,24 @@ export class Pedestrians {
 
   /** Position meshes, interpolating between the previous and current step. */
   render(alpha: number): void {
+    this.tick++;
     for (const ped of this.peds) {
       if (ped.state === 'gibbed') continue; // hidden while exploded
+      // A fast little tremble (visual only) while scared.
+      let sx = 0;
+      let sz = 0;
+      let roll = 0;
+      if (ped.scared) {
+        sx = Math.sin(this.tick * 0.8 + ped.z) * 0.05;
+        sz = Math.cos(this.tick * 0.8 + ped.x) * 0.05;
+        roll = Math.sin(this.tick * 1.3 + ped.x) * 0.13;
+      }
       ped.group.position.set(
-        lerp(ped.px, ped.x, alpha),
+        lerp(ped.px, ped.x, alpha) + sx,
         lerp(ped.py, ped.y, alpha),
-        lerp(ped.pz, ped.z, alpha),
+        lerp(ped.pz, ped.z, alpha) + sz,
       );
-      ped.group.rotation.set(lerp(ped.ptumble, ped.tumble, alpha), angleLerp(ped.ph, ped.heading, alpha), 0);
+      ped.group.rotation.set(lerp(ped.ptumble, ped.tumble, alpha), angleLerp(ped.ph, ped.heading, alpha), roll);
     }
     this.debris.render(alpha);
   }

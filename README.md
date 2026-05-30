@@ -20,7 +20,8 @@
 - **Traffic that brakes for you… mostly** — stand in the road and oncoming cars slow and stop; dart out from inside their stopping distance and they can't help it. Get hit and you lose health; run out and it's **WASTED**, then you respawn.
 - **Run people over** — flatten a pedestrian at speed and they burst into a shower of little cubes; your tally shows on the HUD. (Ambient traffic is lethal too, but only your kills count.)
 - **Ambient life** — traffic looping the avenues and pedestrians milling the streets.
-- **Wanted level & police chase** — run people over and your heat climbs into a ★–★★★★★ wanted rating; every star puts another cop car on your tail (flashing lights and all). Getting WASTED clears it.
+- **Wanted level & police chase** — run people over and your heat climbs into a ★–★★★★★ wanted rating; every star puts another cop car on your tail (flashing lights and all). They use steering-behavior AI — they lead/intercept you, fan out instead of stacking up, and veer around buildings. Getting WASTED clears it.
+- **Pedestrians react** — get close on foot and they panic: trembling and bolting away from you.
 - **Synthesized sound** — an engine note that tracks your speed, tyre screech when you drift, a crunch when you gib someone, and door blips getting in/out — all generated in-browser, no audio files.
 - **Car radio** — 7 stations of original music streamed from a CDN (never bundled); tune with `[` / `]`. Every car drops you into the middle of a track like a live broadcast, and the next song is prefetched while the current one plays.
 - **Plays on mobile** — keyboard on desktop, an on-screen analog joystick + action buttons on touch devices (auto-detected), with quality scaled down for phone GPUs.
@@ -83,7 +84,8 @@ This whole thing is a community-driven dare, built live from requests. Credit wh
 - **Reverse-steering sanity check** — u/Marathon2021 (verified: it's realistic rear-steer, now locked by a test)
 - **Radio stations** — u/aweh_sassy
 - **Police chasing you** — u/c0desurfer (*"Didn't even implement police chasing me. Boring 😄"*)
-- **Sound effects** — u/daemon-electricity
+- **Sound effects, smarter police, radio shuffle** — u/daemon-electricity
+- **Pedestrians fleeing in fear on foot** — u/This-Shape2193
 
 🎵 All radio music is by **Daemon Electricity** — [SoundCloud](https://soundcloud.com/daemonelectricity), and also on Spotify, Apple Music, Amazon, Deezer, Tidal, and most platforms. The tracks stream from a [GitHub Release](https://github.com/depixeled-chris/gta7/releases/tag/radio-v1) rather than being bundled into the site.
 

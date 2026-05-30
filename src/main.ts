@@ -206,10 +206,19 @@ function respawn(): void {
   player.heading = 0;
 }
 
-/** Active player position the police home in on (the car, or the avatar on foot). */
-function chaseTarget(): { x: number; z: number } {
+/** Active player pose + velocity the police intercept (the car, or the avatar on foot). */
+function chaseTarget(): { x: number; z: number; vx: number; vz: number } {
   const pose = vehicles.playerPose();
-  return mode === 'driving' && pose ? { x: pose.x, z: pose.z } : { x: player.x, z: player.z };
+  if (mode === 'driving' && pose) {
+    const v = vehicles.playerVelocity();
+    return { x: pose.x, z: pose.z, vx: v.vx, vz: v.vz };
+  }
+  return {
+    x: player.x,
+    z: player.z,
+    vx: Math.cos(player.heading) * player.speed,
+    vz: -Math.sin(player.heading) * player.speed,
+  };
 }
 
 /** Crimes raise heat; it cools after a grace period. Heat → wanted stars → police. */
@@ -250,7 +259,7 @@ function update(dt: number): void {
   if (wasted) {
     wastedTimer -= dt;
     vehicles.update(city, dt, null, null);
-    peds.update(city, dt, runOverQuery);
+    peds.update(city, dt, runOverQuery, null);
     if (wastedTimer <= 0) respawn();
     controls.endFrame();
     return;
@@ -280,7 +289,7 @@ function update(dt: number): void {
     }
   }
 
-  peds.update(city, dt, runOverQuery);
+  peds.update(city, dt, runOverQuery, mode === 'foot' ? { x: player.x, z: player.z } : null);
   controls.endFrame();
 }
 

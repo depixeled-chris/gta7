@@ -25,6 +25,14 @@ export const angleLerp = (a: number, b: number, t: number): number => a + angleD
 export const starsFromHeat = (heat: number): number =>
   Math.max(0, Math.min(5, Math.ceil(heat / 20)));
 
+/**
+ * Interception lead time for a pursuer: how far ahead to aim, based on the gap
+ * and the closing speed (pursuer + target speed), capped so a sharp turn
+ * doesn't send the pursuer to fantasy positions. (Reynolds "pursue".)
+ */
+export const leadTime = (gap: number, pursuerSpeed: number, targetSpeed: number, maxLead: number): number =>
+  Math.min(maxLead, gap / Math.max(1e-3, pursuerSpeed + targetSpeed));
+
 export const moveToward = (current: number, target: number, maxDelta: number): number => {
   const diff = target - current;
   if (Math.abs(diff) <= maxDelta) return target;

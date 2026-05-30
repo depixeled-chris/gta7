@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { City, Lane } from '../world/City';
 import { createRng } from '../core/rng';
-import { damp, lerp, angleLerp, safeApproachSpeed } from '../core/math';
+import { damp, lerp, angleLerp, safeApproachSpeed, leadTime } from '../core/math';
 import { makeCar } from '../render/Assets';
 import { resolveCircle, circleOverlap, nearestIndex } from './Collision';
 import {
@@ -60,9 +60,16 @@ const PED_REACH = CAR_RADIUS + 0.5; // contact distance for running a pedestrian
 
 const POLICE_COLOR = 0x12131c;
 const POLICE_POOL = 5; // one per wanted star
-const POLICE_SPEED = 27; // faster than traffic, slower than the player's top speed
-const POLICE_ACCEL = 2.4;
+const POLICE_SPEED = 28; // faster than traffic, slower than the player's top speed
+const POLICE_ACCEL = 2.6;
 const POLICE_SPAWN_DIST = 72; // how far from the player a cruiser appears
+// Steering-behavior weights (Reynolds): blended into a desired direction.
+const POLICE_LEAD = 1.2; // s of interception lead, capped
+const POLICE_PURSUE_W = 1.0;
+const POLICE_SEP_RADIUS = 14; // cruisers repel each other within this range
+const POLICE_SEP_W = 1.7; // separation beats pursuit in a scrum, loses in open road
+const POLICE_AVOID_W = 3.0; // avoidance overrides everything so they don't grind walls
+const POLICE_FEELER = CAR_RADIUS + 7; // look-ahead distance for the avoidance probe
 
 export interface PedImpact {
   speed: number; // car speed at the moment of contact (m/s)
@@ -140,7 +147,7 @@ export class Vehicles {
     dt: number,
     input: VehicleInput | null,
     pedestrian: { x: number; z: number } | null = null,
-    chaseTarget: { x: number; z: number } | null = null,
+    chaseTarget: { x: number; z: number; vx?: number; vz?: number } | null = null,
   ): void {
     // Snapshot the pre-step pose so render() can interpolate up to it.
     for (const c of this.cars) {
@@ -165,7 +172,7 @@ export class Vehicles {
       const car = this.cars[i];
       if (!car.active) continue;
       if (car.role === 'ai') this.driveAi(car, city, dt, pedestrian);
-      else if (car.role === 'police') this.drivePolice(car, dt, chaseTarget);
+      else if (car.role === 'police') this.drivePolice(car, city, dt, chaseTarget);
       else this.coast(car, dt);
     }
 
@@ -281,19 +288,73 @@ export class Vehicles {
     if (Math.hypot(car.vx, car.vz) > 0.5) car.heading = Math.atan2(-car.vz, car.vx);
   }
 
-  /** Police seek straight toward the player (building collisions slide them around). */
-  private drivePolice(car: Car, dt: number, target: { x: number; z: number } | null): void {
+  /**
+   * Police steering: a blend of pursuit (lead the player), separation (fan out
+   * instead of stacking), and obstacle avoidance (veer along a wall normal felt
+   * ahead, so they don't grind buildings). Reynolds-style weighted accumulate.
+   */
+  private drivePolice(
+    car: Car,
+    city: City,
+    dt: number,
+    target: { x: number; z: number; vx?: number; vz?: number } | null,
+  ): void {
     if (!target) {
       this.coast(car, dt);
       return;
     }
-    const tx = target.x - car.x;
-    const tz = target.z - car.z;
-    const d = Math.hypot(tx, tz);
-    const desX = d > 1 ? (tx / d) * POLICE_SPEED : 0;
-    const desZ = d > 1 ? (tz / d) * POLICE_SPEED : 0;
-    car.vx = damp(car.vx, desX, POLICE_ACCEL, dt);
-    car.vz = damp(car.vz, desZ, POLICE_ACCEL, dt);
+    const tvx = target.vx ?? 0;
+    const tvz = target.vz ?? 0;
+    const dx = target.x - car.x;
+    const dz = target.z - car.z;
+    const gap = Math.hypot(dx, dz) || 1e-3;
+
+    // Pursuit: aim where the player will be, not where they are.
+    const lead = leadTime(gap, POLICE_SPEED, Math.hypot(tvx, tvz), POLICE_LEAD);
+    let dirX = target.x + tvx * lead - car.x;
+    let dirZ = target.z + tvz * lead - car.z;
+    const pl = Math.hypot(dirX, dirZ) || 1e-3;
+    dirX = (dirX / pl) * POLICE_PURSUE_W;
+    dirZ = (dirZ / pl) * POLICE_PURSUE_W;
+
+    // Separation: pushed away from nearby cruisers, stronger the closer they are.
+    let sx = 0;
+    let sz = 0;
+    for (const o of this.cars) {
+      if (o === car || o.role !== 'police' || !o.active) continue;
+      const ax = car.x - o.x;
+      const az = car.z - o.z;
+      const d = Math.hypot(ax, az);
+      if (d > 1e-3 && d < POLICE_SEP_RADIUS) {
+        sx += ax / (d * d);
+        sz += az / (d * d);
+      }
+    }
+    const sl = Math.hypot(sx, sz);
+    if (sl > 1e-3) {
+      dirX += (sx / sl) * POLICE_SEP_W;
+      dirZ += (sz / sl) * POLICE_SEP_W;
+    }
+
+    // Obstacle avoidance: probe ahead; if it would clip a building, steer along
+    // the push-out normal (reuses the circle/AABB resolver).
+    const sp = Math.hypot(car.vx, car.vz);
+    const hx = sp > 0.5 ? car.vx / sp : dx / gap;
+    const hz = sp > 0.5 ? car.vz / sp : dz / gap;
+    const fx = car.x + hx * POLICE_FEELER;
+    const fz = car.z + hz * POLICE_FEELER;
+    const probe = resolveCircle(fx, fz, CAR_RADIUS, city.colliders);
+    const nx = probe.x - fx;
+    const nz = probe.z - fz;
+    const nl = Math.hypot(nx, nz);
+    if (nl > 1e-3) {
+      dirX += (nx / nl) * POLICE_AVOID_W;
+      dirZ += (nz / nl) * POLICE_AVOID_W;
+    }
+
+    const cl = Math.hypot(dirX, dirZ) || 1e-3;
+    car.vx = damp(car.vx, (dirX / cl) * POLICE_SPEED, POLICE_ACCEL, dt);
+    car.vz = damp(car.vz, (dirZ / cl) * POLICE_SPEED, POLICE_ACCEL, dt);
     car.x += car.vx * dt;
     car.z += car.vz * dt;
     if (Math.hypot(car.vx, car.vz) > 0.5) car.heading = Math.atan2(-car.vz, car.vx);
@@ -431,6 +492,13 @@ export class Vehicles {
   playerLateralSpeed(): number {
     if (this.playerIndex === null) return 0;
     return Math.abs(lateralSpeedOf(this.cars[this.playerIndex]));
+  }
+
+  /** Player car's world velocity (for police interception), or zero on foot. */
+  playerVelocity(): { vx: number; vz: number } {
+    if (this.playerIndex === null) return { vx: 0, vz: 0 };
+    const c = this.cars[this.playerIndex];
+    return { vx: c.vx, vz: c.vz };
   }
 
   positions(): Array<{ x: number; z: number }> {

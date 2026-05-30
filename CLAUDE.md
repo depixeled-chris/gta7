@@ -46,7 +46,8 @@ The codebase is split along one hard line: **the simulation core is pure and Thr
 - `src/ui/HUD.ts` — DOM overlay: speedometer, mode, health bar, run-over counter, radio readout, WASTED screen, live minimap (a `touch` flag repacks it for small screens). `src/ui/TouchControls.ts` — on-screen joystick + action buttons for touch devices.
 - `src/audio/Radio.ts` — runtime radio: one streaming `<audio>` element driven by `RadioModel`. Plays only in a car; entering one drops you onto a random track at a random offset (live-broadcast feel); the next track is prefetched via `<link rel=prefetch>`. Bounded retry on load error so a network outage can't spin the tuner.
 - `src/audio/Sfx.ts` — synthesized sound effects via Web Audio (no files): speed-tracking engine drone, tyre screech (filtered noise), gib crunch, enter/exit blips. Context created/resumed on first gesture.
-- Police live in `Vehicles` as a pooled `role: 'police'` (idle off-map, `active` toggled by `setWanted`). They seek the chase target each step; flashing light bars are toggled in `render`.
+- Police live in `Vehicles` as a pooled `role: 'police'` (idle off-map, `active` toggled by `setWanted`). `drivePolice` blends Reynolds steering behaviors — pursuit/interception (`leadTime`), separation (anti-stacking), and obstacle avoidance (a look-ahead probe through `resolveCircle`) — into a desired direction; flashing light bars toggle in `render`.
+- Pedestrians flee the on-foot player: `Pedestrians.update` takes a `threat` position; within `FEAR_RADIUS` a ped turns to face away, runs at `FLEE_SPEED`, and trembles (a render-only jitter). Passed `null` while driving.
 - `src/main.ts` — the orchestrator: builds the world, owns the driving↔on-foot state machine, the player health / WASTED / respawn cycle, runs the loop, applies collision, drives the camera, and manages the dynamic light pool + headlights.
 
 ### Conventions and invariants (read before editing sim code)

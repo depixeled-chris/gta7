@@ -9,6 +9,7 @@ import {
   safeApproachSpeed,
   stickVector,
   starsFromHeat,
+  leadTime,
 } from './math';
 
 describe('clamp', () => {
@@ -69,6 +70,18 @@ describe('starsFromHeat', () => {
     expect(starsFromHeat(20)).toBe(1);
     expect(starsFromHeat(21)).toBe(2);
     expect(starsFromHeat(81)).toBe(5);
+  });
+});
+
+describe('leadTime', () => {
+  it('is capped by maxLead', () => {
+    expect(leadTime(1000, 27, 64, 1.2)).toBe(1.2);
+  });
+  it('shrinks as closing speed grows', () => {
+    expect(leadTime(50, 27, 64, 5)).toBeLessThan(leadTime(50, 27, 0, 5));
+  });
+  it('matches gap / closing speed below the cap', () => {
+    expect(leadTime(40, 10, 10, 5)).toBeCloseTo(2); // 40 / 20
   });
 });
 

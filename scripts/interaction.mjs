@@ -301,6 +301,35 @@ try {
     JSON.stringify(heat),
   );
 
+  // --- 9. Pedestrians panic and flee when you approach on foot.
+  await reset();
+  await page.keyboard.press('KeyF'); // exit the car -> on foot
+  await page.waitForTimeout(300);
+  const setup = await page.evaluate(() => {
+    const g = window.__game;
+    const p = g.peds.peds[0];
+    p.state = 'walk'; p.scared = false; p.group.visible = true;
+    p.x = g.player.x + 2; p.z = g.player.z; // right next to the player
+    return { mode: g.mode, startD: Math.hypot(p.x - g.player.x, p.z - g.player.z) };
+  });
+  let everScared = false;
+  let lastD = setup.startD;
+  for (let i = 0; i < 8; i++) {
+    await page.waitForTimeout(110);
+    const r = await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.peds.peds[0];
+      return { scared: p.scared, d: Math.hypot(p.x - g.player.x, p.z - g.player.z) };
+    });
+    if (r.scared) everScared = true;
+    lastD = r.d;
+  }
+  check(
+    'pedestrians flee when approached on foot',
+    setup.mode === 'foot' && everScared && lastD > setup.startD + 2,
+    JSON.stringify({ ...setup, everScared, lastD }),
+  );
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();
