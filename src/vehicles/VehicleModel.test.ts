@@ -26,19 +26,22 @@ const drive = (s: VehicleState, input: Partial<VehicleInput>, steps: number): Ve
 describe('crashDamage', () => {
   it('shrugs off gentle bumps below the free-impact threshold', () => {
     expect(crashDamage(0)).toBe(0);
-    expect(crashDamage(5)).toBe(0);
-    expect(crashDamage(-5)).toBe(0); // sign of closing velocity doesn't matter
+    expect(crashDamage(8)).toBe(0);
+    expect(crashDamage(-8)).toBe(0); // sign of closing velocity doesn't matter
   });
 
   it('scales with impact speed above the threshold', () => {
-    expect(crashDamage(16)).toBeGreaterThan(0);
-    expect(crashDamage(30)).toBeGreaterThan(crashDamage(16));
+    expect(crashDamage(15)).toBeGreaterThan(0);
+    expect(crashDamage(30)).toBeGreaterThan(crashDamage(15));
   });
 
-  it('wrecks a full-health car in about two solid hits', () => {
-    const hit = crashDamage(20);
-    expect(hit).toBeLessThan(CAR_MAX_HEALTH); // one hard hit survives
-    expect(hit * 2).toBeGreaterThanOrEqual(CAR_MAX_HEALTH); // two wreck it
+  it('never totals an intact car in a single impact, however fast', () => {
+    expect(crashDamage(90)).toBeLessThan(CAR_MAX_HEALTH); // a flat-out crash leaves you alive
+    expect(crashDamage(10000)).toBeLessThan(CAR_MAX_HEALTH);
+  });
+
+  it('but two hard hits do wreck it', () => {
+    expect(crashDamage(40) * 2).toBeGreaterThanOrEqual(CAR_MAX_HEALTH);
   });
 });
 

@@ -141,11 +141,13 @@ export const toMph = (speed: number): number => Math.abs(speed) * 2.236936;
 /** Full body integrity of an undamaged car. */
 export const CAR_MAX_HEALTH = 100;
 
-// Gentle bumps shouldn't hurt: only the closing speed above this threshold does
-// damage, scaled so two solid (~20 m/s) hits wreck a car.
-const DAMAGE_FREE_SPEED = 6; // m/s of impact you can shrug off
-const DAMAGE_SCALE = 4; // health lost per m/s above the free threshold
+// Gentle bumps shouldn't hurt, and even a flat-out crash shouldn't total an
+// intact car in one hit: damage per impact saturates at MAX_SINGLE_IMPACT (half
+// a car's health), so wrecking takes a couple of hard knocks or sustained ramming.
+const DAMAGE_FREE_SPEED = 8; // m/s of impact you can shrug off
+const DAMAGE_SCALE = 2; // health lost per m/s above the free threshold
+const MAX_SINGLE_IMPACT = CAR_MAX_HEALTH / 2; // no single hit can total an intact car
 
 /** Damage from one impact at `impactSpeed` (m/s of closing/into-wall velocity). */
 export const crashDamage = (impactSpeed: number): number =>
-  Math.max(0, Math.abs(impactSpeed) - DAMAGE_FREE_SPEED) * DAMAGE_SCALE;
+  Math.min(MAX_SINGLE_IMPACT, Math.max(0, Math.abs(impactSpeed) - DAMAGE_FREE_SPEED) * DAMAGE_SCALE);

@@ -396,14 +396,32 @@ try {
     `carHealth ${dent.before} -> ${dented.health.toFixed(1)}`,
   );
 
-  // --- 12. A violent crash wrecks the player car → explosion + WASTED.
+  // --- 12. A full-speed FIRST hit damages the car hard but must NOT total it.
   await reset();
   await page.evaluate(() => {
     const g = window.__game;
     const c = g.city.colliders.reduce((a, b) => (b.minX < a.minX ? b : a));
     const car = g.vehicles.cars[g.vehicles.playerIndex];
     car.x = c.minX - 2; car.z = (c.minZ + c.maxZ) / 2; car.heading = 0;
-    car.vx = 75; car.vz = 0; // a lethal high-speed impact
+    car.vx = 90; car.vz = 0; // flat out (~200 mph) straight into the wall
+  });
+  await page.waitForTimeout(300);
+  const bigHit = await page.evaluate(() => ({ health: window.__game.carHealth, wasted: window.__game.wasted }));
+  check(
+    "a full-speed first hit doesn't total the car",
+    bigHit.health > 0 && bigHit.health < 100 && !bigHit.wasted,
+    `carHealth -> ${bigHit.health.toFixed(1)}, wasted=${bigHit.wasted}`,
+  );
+
+  // --- 12b. Enough damage DOES wreck the player car → explosion + WASTED.
+  await reset();
+  await page.evaluate(() => {
+    const g = window.__game;
+    const c = g.city.colliders.reduce((a, b) => (b.minX < a.minX ? b : a));
+    const car = g.vehicles.cars[g.vehicles.playerIndex];
+    car.x = c.minX - 2; car.z = (c.minZ + c.maxZ) / 2; car.heading = 0;
+    car.health = 20; // already badly damaged from earlier knocks
+    car.vx = 40; car.vz = 0; // one more hard hit finishes it
   });
   await page.waitForTimeout(300);
   const wreck = await page.evaluate(() => ({
@@ -412,12 +430,12 @@ try {
     wrecks: window.__game.vehicles.wreckCount,
   }));
   check(
-    'a high-speed crash wrecks the car (WASTED)',
+    'a wrecked car explodes and triggers WASTED',
     wreck.health === 0 && wreck.wasted === true && wreck.wrecks >= 1,
     JSON.stringify(wreck),
   );
 
-  // --- 12b. An NPC car can wreck on its own (slams a wall) — player untouched.
+  // --- 12c. An NPC car wrecks on its own (slams a wall) — player untouched.
   await reset();
   const npc = await page.evaluate(() => {
     const g = window.__game;
@@ -426,7 +444,8 @@ try {
     const t = v.playerIndex === 0 ? 1 : 0; // any non-player car
     v.cars[t].role = 'parked'; v.cars[t].lane = null;
     v.cars[t].x = c.minX - 2; v.cars[t].z = (c.minZ + c.maxZ) / 2;
-    v.cars[t].vx = 80; v.cars[t].vz = 0; // hurled into the building
+    v.cars[t].health = 20; // already battered
+    v.cars[t].vx = 60; v.cars[t].vz = 0; // hurled into the building
     // Keep the player car well away so only the NPC wrecks.
     const p = v.cars[v.playerIndex];
     p.x = g.city.center.x; p.z = g.city.center.z; p.vx = p.vz = 0;

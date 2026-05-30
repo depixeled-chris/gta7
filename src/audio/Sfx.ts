@@ -86,9 +86,9 @@ export class Sfx {
     this.engineOsc.frequency.setTargetAtTime(engineToneHz(speed01), t, 0.05);
   }
 
-  /** A soft, dull footstep tap. */
+  /** A dull footstep tap — audible over the engine/ambient bed. */
   footstep(): void {
-    this.burst(0.06, 300, 0.13);
+    this.burst(0.08, 340, 0.32);
   }
 
   /** Tyre screech level (0–1) — driven by lateral slip / hard braking. */
