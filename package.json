@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "npm run build && node scripts/smoke.mjs",
-    "test:e2e": "npm run build && node scripts/smoke.mjs && node scripts/interaction.mjs",
+    "test:e2e": "npm run build && node scripts/smoke.mjs && node scripts/interaction.mjs && node scripts/touch.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

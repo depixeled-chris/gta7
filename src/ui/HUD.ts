@@ -19,7 +19,7 @@ export class HUD {
   private readonly healthFill: HTMLElement;
   private readonly wastedEl: HTMLElement;
 
-  constructor(container: HTMLElement, private readonly city: City) {
+  constructor(container: HTMLElement, private readonly city: City, touch = false) {
     this.toWorld = MAP_SIZE / city.extent;
 
     const root = document.createElement('div');
@@ -29,10 +29,13 @@ export class HUD {
     container.appendChild(root);
 
     const speedBox = document.createElement('div');
-    speedBox.style.cssText =
-      'position:absolute;right:20px;bottom:20px;text-align:right;line-height:1;';
+    // On touch the action buttons own the bottom-right corner, so the readout
+    // moves to the top-right (the decorative title is hidden there instead).
+    speedBox.style.cssText = touch
+      ? 'position:absolute;right:18px;top:12px;text-align:right;line-height:1;'
+      : 'position:absolute;right:20px;bottom:20px;text-align:right;line-height:1;';
     this.speedEl = document.createElement('div');
-    this.speedEl.style.cssText = 'font-size:46px;font-weight:700;letter-spacing:-1px;';
+    this.speedEl.style.cssText = `font-size:${touch ? 30 : 46}px;font-weight:700;letter-spacing:-1px;`;
     const unit = document.createElement('div');
     unit.textContent = 'KM/H';
     unit.style.cssText = 'font-size:13px;opacity:.6;margin-top:2px;';
@@ -69,11 +72,13 @@ export class HUD {
       'F — enter / exit vehicle &nbsp;·&nbsp; Shift — sprint &nbsp;·&nbsp; R — reset car';
     help.style.cssText =
       'position:absolute;left:20px;bottom:20px;font-size:12px;opacity:.7;line-height:1.6;';
+    if (touch) help.style.display = 'none'; // the on-screen controls sit here instead
     root.appendChild(help);
 
     const title = document.createElement('div');
     title.innerHTML = 'GTA <b>7</b> <span style="opacity:.5;font-weight:400">// vertical slice</span>';
     title.style.cssText = 'position:absolute;right:20px;top:18px;font-size:15px;';
+    if (touch) title.style.display = 'none'; // top-right is the speedometer on touch
     root.appendChild(title);
 
     this.mapCanvas = document.createElement('canvas');
@@ -81,6 +86,12 @@ export class HUD {
     this.mapCanvas.style.cssText =
       'position:absolute;left:50%;bottom:18px;transform:translateX(-50%);' +
       'border:1px solid rgba(255,255,255,.18);border-radius:8px;background:rgba(8,10,16,.55);';
+    if (touch) {
+      // Shrink the radar so it clears the joystick/buttons; keep full internal resolution.
+      this.mapCanvas.style.width = '128px';
+      this.mapCanvas.style.height = '128px';
+      this.mapCanvas.style.bottom = '12px';
+    }
     root.appendChild(this.mapCanvas);
     this.mapCtx = this.mapCanvas.getContext('2d')!;
 

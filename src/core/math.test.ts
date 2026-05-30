@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clamp, lerp, damp, angleDelta, moveToward, safeApproachSpeed } from './math';
+import { clamp, lerp, damp, angleDelta, moveToward, safeApproachSpeed, stickVector } from './math';
 
 describe('clamp', () => {
   it('bounds values to the range', () => {
@@ -54,5 +54,22 @@ describe('safeApproachSpeed', () => {
   });
   it('matches v = sqrt(2·a·d)', () => {
     expect(safeApproachSpeed(4, 2)).toBeCloseTo(4); // sqrt(2*2*4)=4
+  });
+});
+
+describe('stickVector', () => {
+  const R = 50;
+  it('is zero at the center', () => {
+    expect(stickVector(0, 0, R)).toEqual({ x: 0, y: 0 });
+  });
+  it('maps a full right/up push to +x / +y (y is flipped)', () => {
+    expect(stickVector(R, 0, R).x).toBeCloseTo(1);
+    expect(stickVector(0, -R, R).y).toBeCloseTo(1); // dragging up
+    expect(stickVector(0, R, R).y).toBeCloseTo(-1); // dragging down = reverse
+  });
+  it('clamps to the unit disc beyond the radius', () => {
+    const v = stickVector(R * 3, 0, R);
+    expect(v.x).toBeCloseTo(1);
+    expect(Math.hypot(v.x, v.y)).toBeLessThanOrEqual(1 + 1e-9);
   });
 });

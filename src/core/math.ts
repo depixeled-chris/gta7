@@ -31,3 +31,15 @@ export const moveToward = (current: number, target: number, maxDelta: number): n
  */
 export const safeApproachSpeed = (gap: number, decel: number): number =>
   Math.sqrt(2 * decel * Math.max(0, gap));
+
+/**
+ * Virtual-joystick output. Given a drag offset in screen space (dx right+,
+ * dy down+) and a knob radius, returns a vector clamped to the unit disc with
+ * y flipped so up = +1 (forward). Pure, so the touch mapping is testable.
+ */
+export const stickVector = (dx: number, dy: number, radius: number): { x: number; y: number } => {
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) return { x: 0, y: 0 };
+  const scale = Math.min(len, radius) / radius / len;
+  return { x: dx * scale, y: -dy * scale };
+};

@@ -8,17 +8,30 @@ import { resolveCircle } from './systems/Collision';
 import { Vehicles } from './systems/Vehicles';
 import { Pedestrians } from './systems/Pedestrians';
 import { HUD, type Mode } from './ui/HUD';
-import { Input } from './core/Input';
+import { Controls } from './core/Controls';
 import { GameLoop } from './core/GameLoop';
 import { toKmh, type VehicleInput } from './vehicles/VehicleModel';
+
+/** Touch UI + lower quality on coarse-pointer devices; `?touch=1|0` forces it. */
+function isTouchDevice(): boolean {
+  const forced = new URLSearchParams(location.search).get('touch');
+  if (forced === '1') return true;
+  if (forced === '0') return false;
+  return matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+}
 
 const FOOT_RADIUS = 0.4;
 const ENTER_DISTANCE = 5;
 
 const container = document.getElementById('app')!;
+const touch = isTouchDevice();
 const city = generateCity(DEFAULT_CITY);
 
-const env = new SceneEnv(container, city);
+const env = new SceneEnv(
+  container,
+  city,
+  touch ? { maxPixelRatio: 1.5, shadowMapSize: 1024 } : {},
+);
 const assets = new CityAssets(city.config.seed);
 city.buildings.forEach((b, i) => env.scene.add(assets.makeBuilding(b, i)));
 city.streetlights.forEach((s) => env.scene.add(assets.makeStreetlight(s)));
@@ -49,10 +62,16 @@ const headlights = [0, 1].map(() => {
   return { light, target };
 });
 
-const vehicles = new Vehicles(env.scene, city);
-const peds = new Pedestrians(env.scene, city);
-const hud = new HUD(container, city);
-const input = new Input();
+const vehicles = new Vehicles(env.scene, city, touch ? 24 : 40);
+const peds = new Pedestrians(env.scene, city, touch ? 28 : 60);
+const hud = new HUD(container, city, touch);
+
+let touchRoot: HTMLElement | undefined;
+if (touch) {
+  touchRoot = document.createElement('div');
+  container.appendChild(touchRoot);
+}
+const controls = new Controls(touchRoot);
 const follow = new FollowCamera(env.camera);
 const player = new Player();
 
@@ -96,23 +115,23 @@ function toggleVehicle(): void {
 }
 
 function drivingInput(): VehicleInput {
+  const m = controls.move();
   return {
-    throttle: input.axis(['KeyS', 'ArrowDown'], ['KeyW', 'ArrowUp']),
-    steer: input.axis(['KeyD', 'ArrowRight'], ['KeyA', 'ArrowLeft']), // +1 = left
-    handbrake: input.isDown('Space'),
+    throttle: m.y, // forward
+    steer: -m.x, // +1 = left, so right stick (+x) steers right
+    handbrake: controls.handbrake(),
   };
 }
 
 function updateFoot(dt: number): void {
   const yaw = follow.yaw;
-  const fwd = input.axis(['KeyS', 'ArrowDown'], ['KeyW', 'ArrowUp']);
-  const strafe = input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']);
+  const m = controls.move();
   const cos = Math.cos(yaw);
   const sin = Math.sin(yaw);
-  const dirX = cos * fwd + sin * strafe;
-  const dirZ = -sin * fwd + cos * strafe;
+  const dirX = cos * m.y + sin * m.x;
+  const dirZ = -sin * m.y + cos * m.x;
 
-  player.update(dirX, dirZ, input.isDown('ShiftLeft') || input.isDown('ShiftRight'), dt);
+  player.update(dirX, dirZ, controls.sprint(), dt);
 
   const fixed = resolveCircle(player.x, player.z, FOOT_RADIUS, city.colliders);
   player.x = fixed.x;
@@ -155,14 +174,14 @@ function update(dt: number): void {
     vehicles.update(city, dt, null, null);
     peds.update(city, dt);
     if (wastedTimer <= 0) respawn();
-    input.endFrame();
+    controls.endFrame();
     return;
   }
 
-  if (input.wasPressed('KeyF') || input.wasPressed('KeyE')) toggleVehicle();
+  if (controls.enterExitPressed()) toggleVehicle();
 
   if (mode === 'driving') {
-    if (input.wasPressed('KeyR')) vehicles.resetPlayer(city);
+    if (controls.resetPressed()) vehicles.resetPlayer(city);
     vehicles.update(city, dt, drivingInput(), null);
   } else {
     vehicles.update(city, dt, null, { x: player.x, z: player.z });
@@ -171,7 +190,7 @@ function update(dt: number): void {
   }
 
   peds.update(city, dt);
-  input.endFrame();
+  controls.endFrame();
 }
 
 function updateStreetlightPool(ax: number, az: number): void {

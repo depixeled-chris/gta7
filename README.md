@@ -15,12 +15,14 @@
 - **Physical cars** — solid buildings and momentum-based car-on-car impacts: ram traffic and it gets shoved off course.
 - **Traffic that brakes for you… mostly** — stand in the road and oncoming cars slow and stop; dart out from inside their stopping distance and they can't help it. Get hit and you lose health; run out and it's **WASTED**, then you respawn.
 - **Ambient life** — traffic looping the avenues and pedestrians milling the streets.
-- **HUD + live minimap** — speedometer, mode indicator, and a top-down radar of the city and traffic.
+- **Plays on mobile** — keyboard on desktop, an on-screen analog joystick + action buttons on touch devices (auto-detected), with quality scaled down for phone GPUs.
+- **HUD + live minimap** — speedometer, health, mode indicator, and a top-down radar of the city and traffic.
 - **Backed by tests** — the simulation core (vehicle physics, city generation, collision, RNG) is pure and unit-tested; headless-Chromium tests prove the scene renders *and* that driving, carjacking, and collisions actually work.
 
 ![Powersliding on the handbrake](docs/drift.png)
 ![A streetlight casting a pool of light over the road](docs/streetlights.png)
 ![The WASTED screen after being run over](docs/wasted.png)
+![Touch controls on a mobile device](docs/mobile.png)
 
 ## Play it
 
@@ -38,6 +40,8 @@ npm run dev      # then open the printed localhost URL
 | Enter / exit nearest vehicle | `F` |
 | Sprint (on foot) | `Shift` |
 | Reset car | `R` |
+
+On a touch device the same actions map to an on-screen joystick (steer + throttle / move) and buttons (enter-exit · handbrake · sprint · reset).
 
 ## Develop
 

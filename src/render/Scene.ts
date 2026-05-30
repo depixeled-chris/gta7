@@ -6,14 +6,22 @@ import type { City } from '../world/City';
  * road grid + dusk lighting). A single directional light covers the whole city
  * for shadows; everything else is emissive, which keeps the night look cheap.
  */
+export interface SceneQuality {
+  maxPixelRatio?: number; // cap device pixel ratio (lower = cheaper)
+  shadowMapSize?: number; // directional shadow resolution
+}
+
 export class SceneEnv {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
 
-  constructor(container: HTMLElement, city: City) {
+  constructor(container: HTMLElement, city: City, quality: SceneQuality = {}) {
+    const maxPixelRatio = quality.maxPixelRatio ?? 2;
+    const shadowMapSize = quality.shadowMapSize ?? 2048;
+
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -34,14 +42,15 @@ export class SceneEnv {
     );
     this.camera.position.set(0, 30, 30);
 
-    this.addLights(city);
+    this.addLights(city, shadowMapSize);
     this.addGround(city);
     this.addRoads(city);
 
     window.addEventListener('resize', this.onResize);
+    window.addEventListener('orientationchange', this.onResize);
   }
 
-  private addLights(city: City): void {
+  private addLights(city: City, shadowMapSize: number): void {
     this.scene.add(new THREE.AmbientLight(0x35406a, 0.6));
 
     const hemi = new THREE.HemisphereLight(0x3a4a7a, 0x0a0a12, 0.7);
@@ -50,7 +59,7 @@ export class SceneEnv {
     const moon = new THREE.DirectionalLight(0xbcd0ff, 1.5);
     moon.position.set(city.half * 0.6, city.half * 1.2, city.half * 0.4);
     moon.castShadow = true;
-    moon.shadow.mapSize.set(2048, 2048);
+    moon.shadow.mapSize.set(shadowMapSize, shadowMapSize);
     const cam = moon.shadow.camera;
     cam.left = -city.half;
     cam.right = city.half;

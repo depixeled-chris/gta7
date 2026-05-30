@@ -122,18 +122,23 @@ try {
     const g = window.__game;
     const v = g.vehicles;
     const cars = v.cars;
-    let j = cars.findIndex((c, i) => i !== v.playerIndex && c.role === 'ai');
-    // Isolate the target: park every other car far away so only it approaches.
+    const j = cars.findIndex((c, i) => i !== v.playerIndex && c.role === 'ai');
+    // Isolate the target far from the city edge on a known straight stretch, so
+    // it can't wrap around mid-test. Player stands well ahead on the same lane.
     cars.forEach((c, i) => {
       if (i !== j) { c.role = 'parked'; c.lane = null; c.x = 9000 + i; c.z = 9000; c.vx = c.vz = 0; }
     });
     const c = cars[j];
-    const D = 24;
-    if (c.lane.axis === 'x') { g.player.x = c.x + c.lane.dir * D; g.player.z = c.lane.fixed; }
-    else { g.player.z = c.z + c.lane.dir * D; g.player.x = c.lane.fixed; }
+    const cx = g.city.center.x;
+    const cz = g.city.center.z;
+    c.role = 'ai';
+    c.lane = { axis: 'x', fixed: cz, dir: 1 };
+    c.cruise = 14;
+    c.x = cx - 2; c.z = cz; c.vx = 14; c.vz = 0;
+    g.player.x = cx + 22; g.player.z = cz;
     return { j };
   });
-  await page.waitForTimeout(2600);
+  await page.waitForTimeout(3600);
   const brakeRes = await page.evaluate((j) => {
     const g = window.__game;
     const c = g.vehicles.cars[j];
@@ -146,7 +151,7 @@ try {
   }, braked.j);
   check(
     'cars brake for a standing pedestrian',
-    brakeRes.health === 100 && !brakeRes.wasted && brakeRes.speed < 3 && brakeRes.dist > 2.4,
+    brakeRes.health === 100 && !brakeRes.wasted && brakeRes.speed < 2 && brakeRes.dist > 2.4,
     JSON.stringify(brakeRes),
   );
 
@@ -163,14 +168,13 @@ try {
       if (i !== j) { c.role = 'parked'; c.lane = null; c.x = 9000 + i; c.z = 9000; c.vx = c.vz = 0; }
     });
     const c = cars[j];
-    const SPEED = 30;
-    if (c.lane.axis === 'x') {
-      c.vx = c.lane.dir * SPEED; c.vz = 0;
-      g.player.x = c.x + c.lane.dir * 2.2; g.player.z = c.lane.fixed;
-    } else {
-      c.vz = c.lane.dir * SPEED; c.vx = 0;
-      g.player.z = c.z + c.lane.dir * 2.2; g.player.x = c.lane.fixed;
-    }
+    const cx = g.city.center.x;
+    const cz = g.city.center.z;
+    c.role = 'ai';
+    c.lane = { axis: 'x', fixed: cz, dir: 1 };
+    c.cruise = 30;
+    c.x = cx - 2.5; c.z = cz; c.vx = 30; c.vz = 0;
+    g.player.x = cx; g.player.z = cz; // right in its path, no time to stop
   });
   await page.waitForTimeout(900);
   const deathRes = await page.evaluate(() => ({ health: window.__game.health, wasted: window.__game.wasted }));

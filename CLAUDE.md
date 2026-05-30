@@ -15,7 +15,7 @@ npm run build               # tsc --noEmit (typecheck) THEN vite build -> dist/
 npm test                    # Vitest: pure-logic unit tests (node env)
 npm run test:watch          # Vitest in watch mode
 npm run smoke               # build + headless-Chromium render check (see below)
-npm run test:e2e            # build + render check + gameplay interaction test
+npm run test:e2e            # build + render + gameplay (keyboard) + touch/mobile tests
 npm run preview             # serve the built dist/
 ```
 
@@ -26,14 +26,14 @@ npx vitest run src/vehicles/VehicleModel.test.ts
 npx vitest run -t "caps speed at maxSpeed"
 ```
 
-The browser tests (`scripts/smoke.mjs`, `scripts/interaction.mjs`) require Chromium once: `npx playwright install chromium`. Both self-host the built app. `smoke` fails on any console/page error and decodes a screenshot to assert the scene actually rasterized (color diversity + lit-pixel fraction) rather than rendering a blank canvas. `interaction` drives the real game to assert gameplay: building collision blocks the car, you can enter any nearby car, and ramming shoves traffic. Both use the `window.__game` debug handle (mode, `vehicles`, `player`, `city`) exposed from `main.ts` — keep it in sync if you add state worth testing.
+The browser tests (`scripts/smoke.mjs`, `scripts/interaction.mjs`) require Chromium once: `npx playwright install chromium`. Both self-host the built app. `smoke` fails on any console/page error and decodes a screenshot to assert the scene actually rasterized (color diversity + lit-pixel fraction) rather than rendering a blank canvas. `interaction` drives the real game (keyboard) to assert gameplay: building collision, carjacking, shoving, pedestrian braking, and WASTED. `touch` runs a mobile (touch) context to assert the on-screen joystick drives the car and the buttons work, and that desktop shows no touch UI. All use the `window.__game` debug handle (mode, health, wasted, `vehicles`, `player`, `city`) exposed from `main.ts` — keep it in sync if you add state worth testing.
 
 ## Architecture
 
 The codebase is split along one hard line: **the simulation core is pure and Three.js-free; the rendering/runtime layer owns everything that imports `three`.** This is what makes the gameplay logic unit-testable in a node environment.
 
 **Pure core (no `three`, unit-tested):**
-- `src/core/` — `math` (clamp/lerp/frame-rate-independent `damp`/`angleDelta`), `rng` (seeded mulberry32), `Input` (keyboard with edge detection), `GameLoop` (fixed-timestep accumulator).
+- `src/core/` — `math` (clamp/lerp/frame-rate-independent `damp`/`angleDelta`/`safeApproachSpeed`/`stickVector`), `rng` (seeded mulberry32). Browser-glue (not pure, no Three): `Input` (keyboard edge detection), `GameLoop` (fixed-timestep accumulator), `Controls` (merges keyboard + touch into one analog intent).
 - `src/world/City.ts` — deterministic procedural city generation from a seed: buildings, AABB colliders, traffic lanes, streetlight positions, curbside parking spots, spawn point.
 - `src/vehicles/VehicleModel.ts` — pure arcade vehicle dynamics. `stepVehicle` is a pure function (state + input → state) over a world **velocity vector**; it decomposes velocity into forward/lateral each step and bleeds the lateral part off by tyre grip. The handbrake slashes that grip, which is what produces powerslides.
 - `src/systems/Collision.ts` — circle-vs-AABB push-out, circle-vs-circle overlap (for car-on-car), and nearest-point search.
@@ -42,7 +42,7 @@ The codebase is split along one hard line: **the simulation core is pure and Thr
 - `src/render/` — `Scene` (renderer, dusk lighting, ground/roads, fog), `Assets` (building/car/ped/streetlight mesh factories + material cache), `textures` (procedural facade + radial-glow canvas textures).
 - `src/systems/` — `FollowCamera` (smoothed chase cam), `Vehicles` (ALL cars — player, AI traffic, parked-from-`city.parkingSpots` — with one shared physics + collision pass), `Pedestrians` (ambient walkers).
 - `src/entities/Player.ts` — on-foot avatar controller.
-- `src/ui/HUD.ts` — DOM overlay: speedometer, mode, controls, live minimap.
+- `src/ui/HUD.ts` — DOM overlay: speedometer, mode, health bar, WASTED screen, live minimap (a `touch` flag repacks it for small screens). `src/ui/TouchControls.ts` — on-screen joystick + action buttons for touch devices.
 - `src/main.ts` — the orchestrator: builds the world, owns the driving↔on-foot state machine, the player health / WASTED / respawn cycle, runs the loop, applies collision, drives the camera, and manages the dynamic light pool + headlights.
 
 ### Conventions and invariants (read before editing sim code)
@@ -51,6 +51,8 @@ The codebase is split along one hard line: **the simulation core is pure and Thr
 - **One physics model for all cars:** the player's car, AI traffic, and parked/abandoned cars are the same `Car` struct in `Vehicles`. Only the player car is integrated by `stepVehicle`; AI cars follow lanes (with knock-and-recover), parked cars coast to rest. A single pass then resolves every car against buildings and against each other (momentum exchange). Don't add a separate code path for "the player car" — extend the shared one.
 - **Determinism:** `City`, `Vehicles`, and `Pedestrians` are seeded via `createRng`. Same seed → same world. The `City` tests depend on this; don't introduce `Math.random()` into world generation.
 - **Lighting budget:** the night look is mostly emissive (building windows, lamp heads) plus one shadow-casting directional light. Real dynamic lights are kept to a tiny pool — the streetlights are emissive meshes + additive ground "glow pools", and only ~6 pooled `PointLight`s hop to the streetlights nearest the player each frame; headlights are 2 non-shadow `SpotLight`s on the driven car. Don't add a real light per streetlight (81 of them) — extend the pooling in `main.ts`.
+- **One input abstraction:** the game reads player intent only through `Controls` — `move()` (x: right+, y: forward+), `handbrake()`, `sprint()`, `enterExitPressed()`, `resetPressed()`. Keyboard and touch both feed it and are summed; **keyboard is always active**, touch is added only on coarse-pointer devices. Driving uses `throttle = move.y`, `steer = -move.x`; on foot `forward = move.y`, `strafe = move.x`. Don't read raw keys or touch state in `main` — extend `Controls`.
+- **Mobile quality:** touch devices get `maxPixelRatio: 1.5`, a 1024 shadow map, and fewer traffic/peds (passed from `main`). `?touch=1|0` forces/disables the touch path for testing on desktop.
 - **Pedestrian safety / WASTED:** AI cars brake for the on-foot player via `safeApproachSpeed(gap, decel)` with a capped deceleration rate, so they stop for you when there's room but can't when you dart in from inside the stopping distance. `Vehicles.pedestrianImpact` reports a car overlapping the player and its speed; `main` turns that into edge-triggered damage (per m/s of impact), and zero health → WASTED → timed respawn. Damage is on-foot only.
 - **Fixed timestep:** `GameLoop` calls `update(dt)` at a constant 60 Hz and `render()` once per frame. Put simulation in `update`, presentation in `render`.
 - **Collision model:** every moving actor is a ground-plane circle; the world is `city.colliders` (axis-aligned building footprints). Resolve with `resolveCircle`.
