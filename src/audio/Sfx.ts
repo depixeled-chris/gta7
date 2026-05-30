@@ -25,7 +25,7 @@ export class Sfx {
     const ctx = new Ctor();
     this.ctx = ctx;
     this.master = ctx.createGain();
-    this.master.gain.value = 0.55;
+    this.master.gain.value = 1.1; // doubled default — SFX were too quiet vs the radio (a volume menu is coming)
     this.master.connect(ctx.destination);
     this.noise = this.makeNoise(1);
 

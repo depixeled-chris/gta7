@@ -50,8 +50,7 @@ export class Radio {
       this.started = true;
       this.model.stationIndex = 0;
     }
-    const station = this.model.stations[this.model.stationIndex];
-    if (station) this.model.setTrack(Math.floor(Math.random() * station.tracks.length));
+    this.model.tuneInRandom(); // fresh shuffle, dropped in mid-broadcast
     this.playCurrent(true);
   }
 
