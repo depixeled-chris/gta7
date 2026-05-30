@@ -10,9 +10,10 @@ import { Pedestrians } from './systems/Pedestrians';
 import { HUD, type Mode } from './ui/HUD';
 import { Controls } from './core/Controls';
 import { GameLoop } from './core/GameLoop';
-import { lerp, angleLerp } from './core/math';
+import { lerp, angleLerp, starsFromHeat } from './core/math';
 import { Radio } from './audio/Radio';
-import { toKmh, type VehicleInput } from './vehicles/VehicleModel';
+import { Sfx } from './audio/Sfx';
+import { toKmh, DEFAULT_VEHICLE, type VehicleInput } from './vehicles/VehicleModel';
 
 /** Touch UI + lower quality on coarse-pointer devices; `?touch=1|0` forces it. */
 function isTouchDevice(): boolean {
@@ -83,8 +84,10 @@ const player = new Player();
 let radio: Radio | null = null;
 let radioPrimed = false;
 let userGestured = false;
+const sfx = new Sfx();
 const markGesture = (): void => {
   userGestured = true;
+  sfx.start(); // create/resume the audio context within the gesture
 };
 addEventListener('keydown', markGesture);
 addEventListener('pointerdown', markGesture);
@@ -121,6 +124,16 @@ let wasted = false;
 let wastedTimer = 0;
 let pedContact = false; // were we in contact with a car last frame (edge-trigger)
 
+// Wanted system: "heat" rises with crimes and decays after a grace period;
+// it maps to 0–5 stars, and each star is one chasing police car.
+const CRIME_HEAT = 16; // heat added per pedestrian you personally run over
+const HEAT_GRACE = 6; // seconds of no crime before heat starts to cool
+const HEAT_DECAY = 11; // heat lost per second once cooling
+let heat = 0;
+let stars = 0;
+let sinceCrime = 0;
+let prevRunOver = 0;
+
 const clampToCity = (p: { x: number; z: number }): void => {
   const b = city.half - 2;
   p.x = Math.max(-b, Math.min(b, p.x));
@@ -137,6 +150,7 @@ function toggleVehicle(): void {
     vehicles.exit();
     mode = 'foot';
     radio?.exitCar();
+    sfx.exitCar();
   } else {
     const i = vehicles.nearest(player.x, player.z, ENTER_DISTANCE);
     if (i >= 0) {
@@ -144,6 +158,7 @@ function toggleVehicle(): void {
       mode = 'driving';
       radio?.enterCar();
       radioPrimed = true;
+      sfx.enterCar();
     }
   }
 }
@@ -183,10 +198,34 @@ function respawn(): void {
   wasted = false;
   health = MAX_HEALTH;
   pedContact = false;
+  heat = 0; // getting WASTED clears your wanted level
+  sinceCrime = 0;
   mode = 'foot';
   player.x = city.center.x;
   player.z = city.center.z + 6;
   player.heading = 0;
+}
+
+/** Active player position the police home in on (the car, or the avatar on foot). */
+function chaseTarget(): { x: number; z: number } {
+  const pose = vehicles.playerPose();
+  return mode === 'driving' && pose ? { x: pose.x, z: pose.z } : { x: player.x, z: player.z };
+}
+
+/** Crimes raise heat; it cools after a grace period. Heat → wanted stars → police. */
+function updateWanted(dt: number): void {
+  const over = peds.runOverCount;
+  if (over > prevRunOver) {
+    sfx.gib();
+    heat = Math.min(100, heat + (over - prevRunOver) * CRIME_HEAT);
+    sinceCrime = 0;
+  } else {
+    sinceCrime += dt;
+    if (sinceCrime > HEAT_GRACE) heat = Math.max(0, heat - HEAT_DECAY * dt);
+  }
+  prevRunOver = over;
+  stars = starsFromHeat(heat);
+  vehicles.setWanted(stars, chaseTarget(), city);
 }
 
 /** While on foot, take damage from cars that hit us; trigger WASTED at zero. */
@@ -219,11 +258,14 @@ function update(dt: number): void {
 
   if (controls.enterExitPressed()) toggleVehicle();
 
+  updateWanted(dt);
+  const chase = stars > 0 ? chaseTarget() : null;
+
   if (mode === 'driving') {
     if (controls.resetPressed()) vehicles.resetPlayer(city);
-    vehicles.update(city, dt, drivingInput(), null);
+    vehicles.update(city, dt, drivingInput(), null, chase);
   } else {
-    vehicles.update(city, dt, null, { x: player.x, z: player.z });
+    vehicles.update(city, dt, null, { x: player.x, z: player.z }, chase);
     updateFoot(dt);
     checkPedestrianDamage();
   }
@@ -296,6 +338,12 @@ function render(alpha: number, frameDt: number): void {
   hud.update(speedKmh, mode, active, vehicles.positions(), health, wasted);
   hud.setRunOverCount(peds.runOverCount);
   hud.setRadio(radio ? radio.label() : '📻 OFF');
+  hud.setWanted(stars);
+
+  const driving = mode === 'driving';
+  sfx.setEngine(driving, Math.abs(vehicles.playerForwardSpeed()) / DEFAULT_VEHICLE.maxSpeed);
+  sfx.setScreech(driving ? Math.max(0, (vehicles.playerLateralSpeed() - 2) / 8) : 0);
+
   env.render();
 }
 
@@ -307,6 +355,8 @@ declare global {
       readonly wasted: boolean;
       readonly runOverCount: number;
       readonly radioLabel: string;
+      readonly wanted: number;
+      readonly police: number;
       vehicles: Vehicles;
       player: Player;
       peds: Pedestrians;
@@ -329,6 +379,12 @@ window.__game = {
   },
   get radioLabel() {
     return radio ? radio.label() : '📻 OFF';
+  },
+  get wanted() {
+    return stars;
+  },
+  get police() {
+    return vehicles.activePoliceCount();
   },
   vehicles,
   player,

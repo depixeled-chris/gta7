@@ -21,6 +21,10 @@ export const angleDelta = (a: number, b: number): number => {
 /** Interpolate between two angles along the shortest arc (for render smoothing). */
 export const angleLerp = (a: number, b: number, t: number): number => a + angleDelta(a, b) * t;
 
+/** Map a 0–100 "heat" meter to a 0–5 wanted-star rating. */
+export const starsFromHeat = (heat: number): number =>
+  Math.max(0, Math.min(5, Math.ceil(heat / 20)));
+
 export const moveToward = (current: number, target: number, maxDelta: number): number => {
   const diff = target - current;
   if (Math.abs(diff) <= maxDelta) return target;

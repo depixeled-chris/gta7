@@ -1,0 +1,131 @@
+/**
+ * Synthesized sound effects via the Web Audio API — no audio files. An engine
+ * drone whose pitch tracks speed, tyre screech from filtered noise, a noise
+ * "crunch" for gibs, and short blips for getting in/out. The context is created
+ * and resumed on the first user gesture (autoplay policy); every method no-ops
+ * until then, so it's safe to call anytime.
+ */
+export class Sfx {
+  private ctx?: AudioContext;
+  private master?: GainNode;
+  private noise?: AudioBuffer;
+  private engineOsc?: OscillatorNode;
+  private engineGain?: GainNode;
+  private screechGain?: GainNode;
+  private started = false;
+
+  start(): void {
+    if (this.started) {
+      void this.ctx?.resume();
+      return;
+    }
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+    this.started = true;
+    const ctx = new Ctor();
+    this.ctx = ctx;
+    this.master = ctx.createGain();
+    this.master.gain.value = 0.55;
+    this.master.connect(ctx.destination);
+    this.noise = this.makeNoise(1);
+
+    // Engine: a sawtooth through a lowpass; frequency rises with speed.
+    this.engineGain = ctx.createGain();
+    this.engineGain.gain.value = 0;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 700;
+    this.engineOsc = ctx.createOscillator();
+    this.engineOsc.type = 'sawtooth';
+    this.engineOsc.frequency.value = 50;
+    this.engineOsc.connect(lp);
+    lp.connect(this.engineGain);
+    this.engineGain.connect(this.master);
+    this.engineOsc.start();
+
+    // Tyre screech: looping noise through a resonant bandpass, gated by gain.
+    this.screechGain = ctx.createGain();
+    this.screechGain.gain.value = 0;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2300;
+    bp.Q.value = 6;
+    const screech = ctx.createBufferSource();
+    screech.buffer = this.noise;
+    screech.loop = true;
+    screech.connect(bp);
+    bp.connect(this.screechGain);
+    this.screechGain.connect(this.master);
+    screech.start();
+
+    void ctx.resume();
+  }
+
+  private makeNoise(seconds: number): AudioBuffer {
+    const len = Math.floor(this.ctx!.sampleRate * seconds);
+    const buf = this.ctx!.createBuffer(1, len, this.ctx!.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  /** Continuous engine note: on only while driving, pitch from normalized speed. */
+  setEngine(on: boolean, speed01: number): void {
+    if (!this.ctx || !this.engineGain || !this.engineOsc) return;
+    const t = this.ctx.currentTime;
+    this.engineGain.gain.setTargetAtTime(on ? 0.05 : 0, t, 0.1);
+    const s = Math.max(0, Math.min(1, speed01));
+    this.engineOsc.frequency.setTargetAtTime(45 + s * 120, t, 0.08);
+  }
+
+  /** Tyre screech level (0–1) — driven by lateral slip / hard braking. */
+  setScreech(amount01: number): void {
+    if (!this.ctx || !this.screechGain) return;
+    const a = Math.max(0, Math.min(1, amount01));
+    this.screechGain.gain.setTargetAtTime(a * 0.13, this.ctx.currentTime, 0.05);
+  }
+
+  gib(): void {
+    this.burst(0.18, 520, 0.32);
+  }
+  enterCar(): void {
+    this.blip(340, 0.12);
+  }
+  exitCar(): void {
+    this.blip(190, 0.12);
+  }
+
+  private burst(dur: number, cutoff: number, peak: number): void {
+    if (!this.ctx || !this.noise || !this.master) return;
+    const t = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noise;
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = cutoff;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(peak, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(lp);
+    lp.connect(g);
+    g.connect(this.master);
+    src.start(t);
+    src.stop(t + dur);
+  }
+
+  private blip(freq: number, dur: number): void {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.value = freq;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.18, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g);
+    g.connect(this.master);
+    o.start(t);
+    o.stop(t + dur);
+  }
+}

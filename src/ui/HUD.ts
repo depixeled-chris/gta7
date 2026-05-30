@@ -20,6 +20,7 @@ export class HUD {
   private readonly wastedEl: HTMLElement;
   private readonly scoreEl: HTMLElement;
   private readonly radioEl: HTMLElement;
+  private readonly wantedEl: HTMLElement;
 
   constructor(container: HTMLElement, private readonly city: City, touch = false) {
     this.toWorld = MAP_SIZE / city.extent;
@@ -49,6 +50,12 @@ export class HUD {
       'position:absolute;left:20px;top:18px;font-size:15px;font-weight:700;' +
       'padding:6px 12px;background:rgba(10,14,24,.55);border-radius:6px;backdrop-filter:blur(4px);';
     root.appendChild(this.modeEl);
+
+    this.wantedEl = document.createElement('div');
+    this.wantedEl.style.cssText =
+      'position:absolute;left:20px;top:74px;font-size:18px;letter-spacing:3px;' +
+      'color:#ffd24a;text-shadow:0 1px 4px #000;';
+    root.appendChild(this.wantedEl);
 
     const healthTrack = document.createElement('div');
     healthTrack.style.cssText =
@@ -195,5 +202,9 @@ export class HUD {
 
   setRadio(label: string): void {
     this.radioEl.textContent = label;
+  }
+
+  setWanted(stars: number): void {
+    this.wantedEl.textContent = stars > 0 ? '★'.repeat(stars) : '';
   }
 }

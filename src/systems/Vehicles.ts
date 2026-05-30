@@ -8,6 +8,7 @@ import {
   stepVehicle,
   speedOf,
   forwardSpeedOf,
+  lateralSpeedOf,
   DEFAULT_VEHICLE,
   type VehicleInput,
 } from '../vehicles/VehicleModel';
@@ -21,7 +22,7 @@ import {
  * `stepVehicle` model; the rest follow lanes or coast to rest.
  */
 
-type Role = 'ai' | 'parked';
+type Role = 'ai' | 'parked' | 'police';
 
 interface Car {
   x: number;
@@ -34,10 +35,12 @@ interface Car {
   pz: number;
   ph: number;
   role: Role;
+  active: boolean; // police idle in a pool until a wanted level activates them
   lane: Lane | null;
   cruise: number;
   group: THREE.Group;
   steerWheels: THREE.Object3D[];
+  lightMat?: THREE.MeshStandardMaterial; // police roof light (flashed in render)
 }
 
 const PLAYER_COLOR = 0x10a0c8;
@@ -55,6 +58,12 @@ const PED_BRAKE_DECEL = 7; // braking authority used to compute a safe speed
 const PED_BRAKE_RATE = 5; // how hard the car decelerates toward that safe speed
 const PED_REACH = CAR_RADIUS + 0.5; // contact distance for running a pedestrian over
 
+const POLICE_COLOR = 0x12131c;
+const POLICE_POOL = 5; // one per wanted star
+const POLICE_SPEED = 27; // faster than traffic, slower than the player's top speed
+const POLICE_ACCEL = 2.4;
+const POLICE_SPAWN_DIST = 72; // how far from the player a cruiser appears
+
 export interface PedImpact {
   speed: number; // car speed at the moment of contact (m/s)
   nx: number; // knockback direction (from car toward pedestrian)
@@ -68,6 +77,7 @@ export class Vehicles {
   private readonly cars: Car[] = [];
   playerIndex: number | null = 0;
   private steer = 0;
+  private flash = 0; // render-frame counter for the flashing police lights
 
   constructor(scene: THREE.Scene, city: City, trafficCount = 40, seed = 909) {
     this.spawn(scene, makeCar(PLAYER_COLOR), city.center.x, city.center.z, 0, 'parked', null, 0);
@@ -83,6 +93,26 @@ export class Vehicles {
 
     for (const spot of city.parkingSpots) {
       this.spawn(scene, makeCar(rng.pick(TRAFFIC_COLORS)), spot.x, spot.z, spot.heading, 'parked', null, 0);
+    }
+
+    // A pool of idle police cars (hidden off-map) that a wanted level activates.
+    for (let i = 0; i < POLICE_POOL; i++) {
+      const mesh = makeCar(POLICE_COLOR);
+      const lightMat = new THREE.MeshStandardMaterial({
+        color: 0x220008,
+        emissive: 0xff2030,
+        emissiveIntensity: 2.5,
+      });
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 1.1), lightMat);
+      bar.position.set(-0.2, 1.62, 0);
+      mesh.group.add(bar);
+      mesh.group.visible = false;
+      scene.add(mesh.group);
+      this.cars.push({
+        x: 1e6, z: 1e6, heading: 0, vx: 0, vz: 0, px: 1e6, pz: 1e6, ph: 0,
+        role: 'police', active: false, lane: null, cruise: 0,
+        group: mesh.group, steerWheels: mesh.steerWheels, lightMat,
+      });
     }
   }
 
@@ -101,7 +131,7 @@ export class Vehicles {
     scene.add(mesh.group);
     this.cars.push({
       x, z, heading, vx: 0, vz: 0, px: x, pz: z, ph: heading,
-      role, lane, cruise, group: mesh.group, steerWheels: mesh.steerWheels,
+      role, active: true, lane, cruise, group: mesh.group, steerWheels: mesh.steerWheels,
     });
   }
 
@@ -110,6 +140,7 @@ export class Vehicles {
     dt: number,
     input: VehicleInput | null,
     pedestrian: { x: number; z: number } | null = null,
+    chaseTarget: { x: number; z: number } | null = null,
   ): void {
     // Snapshot the pre-step pose so render() can interpolate up to it.
     for (const c of this.cars) {
@@ -132,7 +163,9 @@ export class Vehicles {
     for (let i = 0; i < this.cars.length; i++) {
       if (i === this.playerIndex) continue;
       const car = this.cars[i];
+      if (!car.active) continue;
       if (car.role === 'ai') this.driveAi(car, city, dt, pedestrian);
+      else if (car.role === 'police') this.drivePolice(car, dt, chaseTarget);
       else this.coast(car, dt);
     }
 
@@ -148,13 +181,17 @@ export class Vehicles {
 
   /** Position meshes, interpolating between the previous and current step. */
   render(alpha: number): void {
+    this.flash++;
+    const blue = Math.floor(this.flash / 16) % 2 === 0;
     for (let i = 0; i < this.cars.length; i++) {
       const c = this.cars[i];
+      if (!c.active) continue;
       c.group.position.set(lerp(c.px, c.x, alpha), 0, lerp(c.pz, c.z, alpha));
       c.group.rotation.y = angleLerp(c.ph, c.heading, alpha);
       if (i === this.playerIndex) {
         for (const w of c.steerWheels) w.rotation.y = this.steer * 0.5;
       }
+      if (c.lightMat) c.lightMat.emissive.setHex(blue ? 0x2030ff : 0xff2030);
     }
   }
 
@@ -244,8 +281,54 @@ export class Vehicles {
     if (Math.hypot(car.vx, car.vz) > 0.5) car.heading = Math.atan2(-car.vz, car.vx);
   }
 
+  /** Police seek straight toward the player (building collisions slide them around). */
+  private drivePolice(car: Car, dt: number, target: { x: number; z: number } | null): void {
+    if (!target) {
+      this.coast(car, dt);
+      return;
+    }
+    const tx = target.x - car.x;
+    const tz = target.z - car.z;
+    const d = Math.hypot(tx, tz);
+    const desX = d > 1 ? (tx / d) * POLICE_SPEED : 0;
+    const desZ = d > 1 ? (tz / d) * POLICE_SPEED : 0;
+    car.vx = damp(car.vx, desX, POLICE_ACCEL, dt);
+    car.vz = damp(car.vz, desZ, POLICE_ACCEL, dt);
+    car.x += car.vx * dt;
+    car.z += car.vz * dt;
+    if (Math.hypot(car.vx, car.vz) > 0.5) car.heading = Math.atan2(-car.vz, car.vx);
+  }
+
+  /** Keep exactly `stars` police active, spawning newcomers near the target. */
+  setWanted(stars: number, target: { x: number; z: number }, city: City): void {
+    let active = 0;
+    for (const car of this.cars) {
+      if (car.role !== 'police') continue;
+      const shouldBeActive = active < stars;
+      if (shouldBeActive && !car.active) {
+        const ang = Math.random() * Math.PI * 2;
+        const b = city.half - 4;
+        car.x = car.px = Math.max(-b, Math.min(b, target.x + Math.cos(ang) * POLICE_SPAWN_DIST));
+        car.z = car.pz = Math.max(-b, Math.min(b, target.z + Math.sin(ang) * POLICE_SPAWN_DIST));
+        car.vx = car.vz = 0;
+        car.heading = car.ph = 0;
+        car.active = true;
+        car.group.visible = true;
+      } else if (!shouldBeActive && car.active) {
+        car.active = false;
+        car.group.visible = false;
+      }
+      if (car.active) active++;
+    }
+  }
+
+  activePoliceCount(): number {
+    return this.cars.filter((c) => c.role === 'police' && c.active).length;
+  }
+
   private collide(city: City): void {
     for (const car of this.cars) {
+      if (!car.active) continue;
       const fixed = resolveCircle(car.x, car.z, CAR_RADIUS, city.colliders);
       const px = fixed.x - car.x;
       const pz = fixed.z - car.z;
@@ -269,6 +352,7 @@ export class Vehicles {
       for (let j = i + 1; j < this.cars.length; j++) {
         const a = this.cars[i];
         const b = this.cars[j];
+        if (!a.active || !b.active) continue;
         const o = circleOverlap(a.x, a.z, b.x, b.z, CAR_RADIUS * 2);
         if (!o) continue;
 
@@ -341,6 +425,12 @@ export class Vehicles {
   playerForwardSpeed(): number {
     if (this.playerIndex === null) return 0;
     return forwardSpeedOf(this.cars[this.playerIndex]);
+  }
+
+  /** Sideways slip speed of the player's car (for tyre-screech SFX), or 0 on foot. */
+  playerLateralSpeed(): number {
+    if (this.playerIndex === null) return 0;
+    return Math.abs(lateralSpeedOf(this.cars[this.playerIndex]));
   }
 
   positions(): Array<{ x: number; z: number }> {

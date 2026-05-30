@@ -274,6 +274,33 @@ try {
     `"${radioBefore}" -> "${radioAfter}"`,
   );
 
+  // --- 8. Crime summons police: mow down pedestrians, get a wanted level + chasers.
+  await reset();
+  await page.evaluate(() => {
+    const g = window.__game;
+    const p = g.vehicles.cars[g.vehicles.playerIndex];
+    for (let i = 0; i < 3; i++) {
+      const ped = g.peds.peds[i];
+      ped.state = 'walk'; ped.group.visible = true; ped.y = 0; ped.tumble = 0;
+      ped.x = p.x + 6 + i * 3; ped.z = p.z;
+    }
+    p.heading = 0; p.vx = 24; p.vz = 0;
+  });
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(1300);
+  await page.keyboard.up('KeyW');
+  await page.waitForTimeout(300);
+  const heat = await page.evaluate(() => ({
+    kills: window.__game.runOverCount,
+    wanted: window.__game.wanted,
+    police: window.__game.police,
+  }));
+  check(
+    'running people over raises a wanted level and spawns police',
+    heat.kills >= 1 && heat.wanted >= 1 && heat.police >= 1,
+    JSON.stringify(heat),
+  );
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();

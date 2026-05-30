@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { clamp, lerp, damp, angleDelta, angleLerp, moveToward, safeApproachSpeed, stickVector } from './math';
+import {
+  clamp,
+  lerp,
+  damp,
+  angleDelta,
+  angleLerp,
+  moveToward,
+  safeApproachSpeed,
+  stickVector,
+  starsFromHeat,
+} from './math';
 
 describe('clamp', () => {
   it('bounds values to the range', () => {
@@ -45,6 +55,20 @@ describe('angleLerp', () => {
   it('returns endpoints at t=0 and t=1', () => {
     expect(angleLerp(0.3, 1.2, 0)).toBeCloseTo(0.3);
     expect(angleLerp(0.3, 1.2, 1)).toBeCloseTo(1.2);
+  });
+});
+
+describe('starsFromHeat', () => {
+  it('is 0 at no heat and caps at 5', () => {
+    expect(starsFromHeat(0)).toBe(0);
+    expect(starsFromHeat(200)).toBe(5);
+    expect(starsFromHeat(-10)).toBe(0);
+  });
+  it('rises a star per 20 heat', () => {
+    expect(starsFromHeat(1)).toBe(1);
+    expect(starsFromHeat(20)).toBe(1);
+    expect(starsFromHeat(21)).toBe(2);
+    expect(starsFromHeat(81)).toBe(5);
   });
 });
 
