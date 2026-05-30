@@ -24,6 +24,8 @@ request lands **here** first, gets triaged, then implemented in a managed order.
 
 Keep _Shipped_ compact (one line per item; collapse old detail). When in doubt, the file's order top-to-bottom is the plan.
 
+**Research** lives in [`docs/research/`](docs/research/) (see its index). Before investigating anything, check there first; reference the doc from the item (e.g. "see research/car-physics-profiles.md"). Don't start a parallel investigation — update the existing doc.
+
 ---
 
 ## 🟡 In progress / next up (top = do first)
@@ -39,20 +41,10 @@ Keep _Shipped_ compact (one line per item; collapse old detail). When in doubt, 
 - [R008] 🔵 Busted state — community · police pin you at low speed → arrested (vs only ramming)
 
 ## 🔬 Researched — ready to implement
-
-**R003 — Car physics profiles.** `stepVehicle` is already pure, so profiles ≈ "swap the config."
-Do first (plumbing): rename `VehicleConfig`→`CarProfile`, store `profile` per `Car`, drop the hardcoded
-`DEFAULT_VEHICLE` in the player step, add `vehicles/profiles.ts`. Then add `mass` (mass-weighted collision
-via a pure `resolveCarImpulse` helper — equal mass = today's formula), `radius` per profile (replace global
-`CAR_RADIUS`), and `highSpeedSteerMul` (turn-rate taper, default 1 = no change). Optional 2nd pass: a grip
-circle. Skip real gears & weight transfer.
-
-**R007 — Streaming world & R001 perf.** Rust/WASM is **NO-GO now** (hot loops are microseconds; per-frame
-JS↔WASM marshalling costs more than it saves). Instead: build a uniform spatial **grid** (TS) keyed on the
-existing `cell` size — near-O(n) collision and the structure streaming needs. Streaming step 0: refactor
-`generateCity` → pure `generateChunk(cx,cz)` with a per-chunk derived seed `hash(seed,cx,cz)`, re-express
-today's city as an N×N tiling (still all loaded, fully testable). Then load/unload ring + mesh pooling (reuse
-the police-pool pattern) + InstancedMesh buildings; follow-the-player shadow camera; scrolling minimap.
+Full write-ups in [`docs/research/`](docs/research/).
+- **R003 — Car physics profiles** → [research/car-physics-profiles.md](docs/research/car-physics-profiles.md). Plumb `CarProfile` + per-car `profile`, then add `mass` / `radius` / `highSpeedSteerMul`; grip circle optional.
+- **R001 — Spatial grid** & **R007 — Streaming** → [research/perf-wasm-streaming.md](docs/research/perf-wasm-streaming.md). Grid first (near-O(n) collision, foundation for streaming); streaming step 0 = pure `generateChunk(cx,cz)`.
+- **R009 — Rust/WASM**: NO-GO now (premature) — same doc has the revisit triggers.
 
 ## ⏸ Deferred / declined
 - [R009] ⏸ Rust → WASM — premature. Revisit when >300–500 colliding bodies on a TS grid, or runtime chunk-gen hitches (>4–6 ms); try a Web Worker before WASM.

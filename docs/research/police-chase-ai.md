@@ -1,0 +1,42 @@
+# Police chase AI
+
+**Question:** How to make the police chase feel good instead of cops trailing
+single-file, bunching up, and sticking to buildings?
+**Date:** 2026-05-30 · **Status:** ♻️ partially implemented
+
+## TL;DR
+Use Reynolds steering behaviors blended into a desired direction. Shipped:
+pursuit/interception, separation, obstacle avoidance. Not yet built: flanking
+slots, line-of-sight cooldown, busted state, escalation table, roadblocks/PIT.
+
+## Findings (prioritized punch-list)
+Accumulate weighted behaviors → clamp → integrate (the standard loop).
+
+1. **Pursuit/interception** ✅ — aim where the player *will* be: lead time
+   `T = min(maxLead, gap / (copSpeed + targetSpeed))`, seek `target + vel*T`.
+   `maxLead ≈ 1.2 s`. Critical because the player outruns cops on straights;
+   leading lets a flanker actually cut them off. (`leadTime` in `core/math`.)
+2. **Separation** ✅ — push away from nearby cops, weight `1/d²`, normalize.
+   Radius ≈ 2.5–3 car lengths; weight > pursuit so they fan out in a scrum.
+3. **Obstacle avoidance** ✅ — probe a point ahead along velocity; if it would
+   clip a building, steer along the push-out normal (we reuse `resolveCircle`).
+   Avoidance weight highest so they don't grind walls. (Full Reynolds uses 3 ray
+   whiskers; our single look-ahead probe is the cheap version.)
+4. **Flanking/surround** 🔬 — assign each cop an angle *slot* around the player
+   in the player's velocity frame; pursue the slot, not the player. Forward slots
+   become blockers. Re-assign slots greedily ~every 1 s. Only at wanted ≥ 2.
+5. **Losing them (LOS + cooldown)** 🔬 — two phases: seen (any cop has line of
+   sight → search circle re-centers, escape timer held) vs cooldown (no LOS →
+   cops head to last-known position, timer counts up; survive outside the circle
+   → wanted drops). Flash the stars while cooling. We currently use a simpler
+   time-based heat decay instead.
+6. **Busted** 🔬 (= ROADMAP R008) — `pinned = speed<4 && ≥2 cops within ~9 m &&
+   one within ~4 m`; fill a timer (decays 2× faster than it fills); >2 s → busted.
+7. **Escalation by wanted level** 🔬 — drive everything off one `WANTED_CONFIG[star]`
+   table of scalar knobs (count, speed, sight, flank/PIT toggles). Cheapest
+   high-value escalation: roadblocks (just spawned cars using existing collision).
+   Keep per-star differences as data, not scattered `if wanted >= n`.
+
+## Sources
+Reynolds *Steering Behaviors* (red3d.com/cwr/steer), Nature of Code ch.5
+(autonomous agents), GTA V wanted-level search-cone/cooldown model.
