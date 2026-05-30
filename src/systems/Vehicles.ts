@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { City, Lane } from '../world/City';
 import { createRng } from '../core/rng';
-import { damp } from '../core/math';
+import { damp, safeApproachSpeed } from '../core/math';
 import { makeCar } from '../render/Assets';
 import { resolveCircle, circleOverlap, nearestIndex } from './Collision';
 import {
@@ -44,6 +44,18 @@ const LANE_CORRECT = 2.2; // how hard AI steers back to lane centerline
 const AI_RECOVER = 2.6; // how fast AI velocity returns to cruise after a hit
 const PARK_FRICTION = 1.8; // how fast an abandoned/shoved car coasts to rest
 const RESTITUTION = 0.4; // bounciness of car-on-car impacts
+
+const PED_LANE_HALF = 2.6; // how wide a car watches for a pedestrian in its path
+const PED_STOP_GAP = 5; // distance ahead of a pedestrian a car aims to stop
+const PED_BRAKE_DECEL = 7; // braking authority used to compute a safe speed
+const PED_BRAKE_RATE = 5; // how hard the car decelerates toward that safe speed
+const PED_REACH = CAR_RADIUS + 0.5; // contact distance for running a pedestrian over
+
+export interface PedImpact {
+  speed: number; // car speed at the moment of contact (m/s)
+  nx: number; // knockback direction (from car toward pedestrian)
+  nz: number;
+}
 
 export class Vehicles {
   private readonly cars: Car[] = [];
@@ -107,7 +119,12 @@ export class Vehicles {
     }
   }
 
-  update(city: City, dt: number, input: VehicleInput | null): void {
+  update(
+    city: City,
+    dt: number,
+    input: VehicleInput | null,
+    pedestrian: { x: number; z: number } | null = null,
+  ): void {
     if (this.playerIndex !== null && input) {
       this.steer = input.steer;
       const pc = this.cars[this.playerIndex];
@@ -122,7 +139,7 @@ export class Vehicles {
     for (let i = 0; i < this.cars.length; i++) {
       if (i === this.playerIndex) continue;
       const car = this.cars[i];
-      if (car.role === 'ai') this.driveAi(car, city, dt);
+      if (car.role === 'ai') this.driveAi(car, city, dt, pedestrian);
       else this.coast(car, dt);
     }
 
@@ -137,7 +154,12 @@ export class Vehicles {
     this.syncMeshes();
   }
 
-  private driveAi(car: Car, city: City, dt: number): void {
+  private driveAi(
+    car: Car,
+    city: City,
+    dt: number,
+    pedestrian: { x: number; z: number } | null,
+  ): void {
     const lane = car.lane!;
     const half = city.half;
 
@@ -148,16 +170,54 @@ export class Vehicles {
     } else if (car.z > half) car.z -= half * 2;
     else if (car.z < -half) car.z += half * 2;
 
+    // Brake for a pedestrian standing in this car's path. The car only slows
+    // as fast as PED_BRAKE_RATE allows, so darting in front from inside the
+    // stopping distance gets you hit.
+    let cruise = car.cruise;
+    let rate = AI_RECOVER;
+    if (pedestrian) {
+      const ahead =
+        lane.axis === 'x'
+          ? (pedestrian.x - car.x) * lane.dir
+          : (pedestrian.z - car.z) * lane.dir;
+      const sideways =
+        lane.axis === 'x' ? Math.abs(pedestrian.z - car.z) : Math.abs(pedestrian.x - car.x);
+      if (ahead > 0 && sideways < PED_LANE_HALF) {
+        const safe = safeApproachSpeed(ahead - PED_STOP_GAP, PED_BRAKE_DECEL);
+        if (safe < cruise) {
+          cruise = safe;
+          rate = PED_BRAKE_RATE;
+        }
+      }
+    }
+
     const lateral = lane.axis === 'x' ? car.z - lane.fixed : car.x - lane.fixed;
-    const alongV = lane.dir * car.cruise;
+    const alongV = lane.dir * cruise;
     const latV = -lateral * LANE_CORRECT;
     const desX = lane.axis === 'x' ? alongV : latV;
     const desZ = lane.axis === 'z' ? alongV : latV;
 
-    car.vx = damp(car.vx, desX, AI_RECOVER, dt);
-    car.vz = damp(car.vz, desZ, AI_RECOVER, dt);
+    car.vx = damp(car.vx, desX, rate, dt);
+    car.vz = damp(car.vz, desZ, rate, dt);
     car.x += car.vx * dt;
     car.z += car.vz * dt;
+  }
+
+  /** The fastest car currently overlapping a pedestrian at (px,pz), or null. */
+  pedestrianImpact(px: number, pz: number): PedImpact | null {
+    let best: PedImpact | null = null;
+    for (let i = 0; i < this.cars.length; i++) {
+      if (i === this.playerIndex) continue;
+      const c = this.cars[i];
+      const dist = Math.hypot(c.x - px, c.z - pz);
+      if (dist >= PED_REACH) continue;
+      const speed = Math.hypot(c.vx, c.vz);
+      if (!best || speed > best.speed) {
+        const d = dist || 1e-3;
+        best = { speed, nx: (px - c.x) / d, nz: (pz - c.z) / d };
+      }
+    }
+    return best;
   }
 
   private coast(car: Car, dt: number): void {

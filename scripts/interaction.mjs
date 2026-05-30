@@ -114,6 +114,72 @@ try {
     `target moved from x=${shove.startX.toFixed(2)} to ${shoved.x.toFixed(2)}`,
   );
 
+  // --- 4. Cars brake for a pedestrian standing in the road.
+  await reset();
+  await page.keyboard.press('KeyF'); // on foot
+  await page.waitForTimeout(150);
+  const braked = await page.evaluate(() => {
+    const g = window.__game;
+    const v = g.vehicles;
+    const cars = v.cars;
+    let j = cars.findIndex((c, i) => i !== v.playerIndex && c.role === 'ai');
+    // Isolate the target: park every other car far away so only it approaches.
+    cars.forEach((c, i) => {
+      if (i !== j) { c.role = 'parked'; c.lane = null; c.x = 9000 + i; c.z = 9000; c.vx = c.vz = 0; }
+    });
+    const c = cars[j];
+    const D = 24;
+    if (c.lane.axis === 'x') { g.player.x = c.x + c.lane.dir * D; g.player.z = c.lane.fixed; }
+    else { g.player.z = c.z + c.lane.dir * D; g.player.x = c.lane.fixed; }
+    return { j };
+  });
+  await page.waitForTimeout(2600);
+  const brakeRes = await page.evaluate((j) => {
+    const g = window.__game;
+    const c = g.vehicles.cars[j];
+    return {
+      speed: Math.hypot(c.vx, c.vz),
+      dist: Math.hypot(c.x - g.player.x, c.z - g.player.z),
+      health: g.health,
+      wasted: g.wasted,
+    };
+  }, braked.j);
+  check(
+    'cars brake for a standing pedestrian',
+    brakeRes.health === 100 && !brakeRes.wasted && brakeRes.speed < 3 && brakeRes.dist > 2.4,
+    JSON.stringify(brakeRes),
+  );
+
+  // --- 5. Darting in front of a fast car from inside its stopping distance is fatal.
+  await reset();
+  await page.keyboard.press('KeyF');
+  await page.waitForTimeout(150);
+  await page.evaluate(() => {
+    const g = window.__game;
+    const v = g.vehicles;
+    const cars = v.cars;
+    const j = cars.findIndex((c, i) => i !== v.playerIndex && c.role === 'ai');
+    cars.forEach((c, i) => {
+      if (i !== j) { c.role = 'parked'; c.lane = null; c.x = 9000 + i; c.z = 9000; c.vx = c.vz = 0; }
+    });
+    const c = cars[j];
+    const SPEED = 30;
+    if (c.lane.axis === 'x') {
+      c.vx = c.lane.dir * SPEED; c.vz = 0;
+      g.player.x = c.x + c.lane.dir * 2.2; g.player.z = c.lane.fixed;
+    } else {
+      c.vz = c.lane.dir * SPEED; c.vx = 0;
+      g.player.z = c.z + c.lane.dir * 2.2; g.player.x = c.lane.fixed;
+    }
+  });
+  await page.waitForTimeout(900);
+  const deathRes = await page.evaluate(() => ({ health: window.__game.health, wasted: window.__game.wasted }));
+  check(
+    'jumping in front of a fast car is fatal (WASTED)',
+    deathRes.health < 100 && deathRes.wasted === true,
+    JSON.stringify(deathRes),
+  );
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();

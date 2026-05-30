@@ -23,3 +23,11 @@ export const moveToward = (current: number, target: number, maxDelta: number): n
   if (Math.abs(diff) <= maxDelta) return target;
   return current + Math.sign(diff) * maxDelta;
 };
+
+/**
+ * Highest speed from which you can still stop within `gap` at deceleration
+ * `decel` (v = sqrt(2·a·d)). Used so AI cars brake for a pedestrian ahead —
+ * and, when the gap is too small, physically can't stop in time.
+ */
+export const safeApproachSpeed = (gap: number, decel: number): number =>
+  Math.sqrt(2 * decel * Math.max(0, gap));

@@ -43,7 +43,7 @@ The codebase is split along one hard line: **the simulation core is pure and Thr
 - `src/systems/` — `FollowCamera` (smoothed chase cam), `Vehicles` (ALL cars — player, AI traffic, parked-from-`city.parkingSpots` — with one shared physics + collision pass), `Pedestrians` (ambient walkers).
 - `src/entities/Player.ts` — on-foot avatar controller.
 - `src/ui/HUD.ts` — DOM overlay: speedometer, mode, controls, live minimap.
-- `src/main.ts` — the orchestrator: builds the world, owns the driving↔on-foot state machine, runs the loop, applies collision, drives the camera.
+- `src/main.ts` — the orchestrator: builds the world, owns the driving↔on-foot state machine, the player health / WASTED / respawn cycle, runs the loop, applies collision, drives the camera, and manages the dynamic light pool + headlights.
 
 ### Conventions and invariants (read before editing sim code)
 
@@ -51,6 +51,7 @@ The codebase is split along one hard line: **the simulation core is pure and Thr
 - **One physics model for all cars:** the player's car, AI traffic, and parked/abandoned cars are the same `Car` struct in `Vehicles`. Only the player car is integrated by `stepVehicle`; AI cars follow lanes (with knock-and-recover), parked cars coast to rest. A single pass then resolves every car against buildings and against each other (momentum exchange). Don't add a separate code path for "the player car" — extend the shared one.
 - **Determinism:** `City`, `Vehicles`, and `Pedestrians` are seeded via `createRng`. Same seed → same world. The `City` tests depend on this; don't introduce `Math.random()` into world generation.
 - **Lighting budget:** the night look is mostly emissive (building windows, lamp heads) plus one shadow-casting directional light. Real dynamic lights are kept to a tiny pool — the streetlights are emissive meshes + additive ground "glow pools", and only ~6 pooled `PointLight`s hop to the streetlights nearest the player each frame; headlights are 2 non-shadow `SpotLight`s on the driven car. Don't add a real light per streetlight (81 of them) — extend the pooling in `main.ts`.
+- **Pedestrian safety / WASTED:** AI cars brake for the on-foot player via `safeApproachSpeed(gap, decel)` with a capped deceleration rate, so they stop for you when there's room but can't when you dart in from inside the stopping distance. `Vehicles.pedestrianImpact` reports a car overlapping the player and its speed; `main` turns that into edge-triggered damage (per m/s of impact), and zero health → WASTED → timed respawn. Damage is on-foot only.
 - **Fixed timestep:** `GameLoop` calls `update(dt)` at a constant 60 Hz and `render()` once per frame. Put simulation in `update`, presentation in `render`.
 - **Collision model:** every moving actor is a ground-plane circle; the world is `city.colliders` (axis-aligned building footprints). Resolve with `resolveCircle`.
 - **Building UVs (`Assets.scaleFacadeUvs`)** rely on Three's `BoxGeometry` face/group order: +X, −X, +Y, −Y, +Z, −Z. The roof/floor faces are intentionally collapsed to a dark texel.

@@ -13,12 +13,14 @@
 - **Arcade driving with powerslides** — a velocity-vector handling model with tyre grip; yank the handbrake mid-corner and the back end steps out into a drift.
 - **Carjack anything** — walk up to *any* car — your spawn ride, ambient traffic, or one of the cars parked along the curbs — and get in.
 - **Physical cars** — solid buildings and momentum-based car-on-car impacts: ram traffic and it gets shoved off course.
+- **Traffic that brakes for you… mostly** — stand in the road and oncoming cars slow and stop; dart out from inside their stopping distance and they can't help it. Get hit and you lose health; run out and it's **WASTED**, then you respawn.
 - **Ambient life** — traffic looping the avenues and pedestrians milling the streets.
 - **HUD + live minimap** — speedometer, mode indicator, and a top-down radar of the city and traffic.
 - **Backed by tests** — the simulation core (vehicle physics, city generation, collision, RNG) is pure and unit-tested; headless-Chromium tests prove the scene renders *and* that driving, carjacking, and collisions actually work.
 
 ![Powersliding on the handbrake](docs/drift.png)
 ![A streetlight casting a pool of light over the road](docs/streetlights.png)
+![The WASTED screen after being run over](docs/wasted.png)
 
 ## Play it
 

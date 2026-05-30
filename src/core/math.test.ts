@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clamp, lerp, damp, angleDelta, moveToward } from './math';
+import { clamp, lerp, damp, angleDelta, moveToward, safeApproachSpeed } from './math';
 
 describe('clamp', () => {
   it('bounds values to the range', () => {
@@ -41,5 +41,18 @@ describe('moveToward', () => {
     expect(moveToward(0, 10, 3)).toBe(3);
     expect(moveToward(0, 2, 3)).toBe(2);
     expect(moveToward(10, 0, 3)).toBe(7);
+  });
+});
+
+describe('safeApproachSpeed', () => {
+  it('is zero when there is no room to stop', () => {
+    expect(safeApproachSpeed(0, 7)).toBe(0);
+    expect(safeApproachSpeed(-5, 7)).toBe(0);
+  });
+  it('grows with the available gap', () => {
+    expect(safeApproachSpeed(10, 7)).toBeGreaterThan(safeApproachSpeed(2, 7));
+  });
+  it('matches v = sqrt(2·a·d)', () => {
+    expect(safeApproachSpeed(4, 2)).toBeCloseTo(4); // sqrt(2*2*4)=4
   });
 });

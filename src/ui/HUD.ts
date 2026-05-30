@@ -16,6 +16,8 @@ export class HUD {
   private readonly mapCtx: CanvasRenderingContext2D;
   private readonly staticMap: HTMLCanvasElement;
   private readonly toWorld: number;
+  private readonly healthFill: HTMLElement;
+  private readonly wastedEl: HTMLElement;
 
   constructor(container: HTMLElement, private readonly city: City) {
     this.toWorld = MAP_SIZE / city.extent;
@@ -42,6 +44,24 @@ export class HUD {
       'position:absolute;left:20px;top:18px;font-size:15px;font-weight:700;' +
       'padding:6px 12px;background:rgba(10,14,24,.55);border-radius:6px;backdrop-filter:blur(4px);';
     root.appendChild(this.modeEl);
+
+    const healthTrack = document.createElement('div');
+    healthTrack.style.cssText =
+      'position:absolute;left:20px;top:54px;width:180px;height:12px;' +
+      'background:rgba(10,14,24,.55);border-radius:6px;overflow:hidden;';
+    this.healthFill = document.createElement('div');
+    this.healthFill.style.cssText = 'height:100%;width:100%;background:#54ff84;transition:width .1s linear;';
+    healthTrack.appendChild(this.healthFill);
+    root.appendChild(healthTrack);
+
+    this.wastedEl = document.createElement('div');
+    this.wastedEl.textContent = 'WASTED';
+    this.wastedEl.style.cssText =
+      'position:absolute;inset:0;display:none;align-items:center;justify-content:center;' +
+      'font-size:13vw;font-weight:800;letter-spacing:6px;color:#c0202a;' +
+      'background:radial-gradient(circle,rgba(40,0,0,.35),rgba(0,0,0,.85));' +
+      'text-shadow:0 4px 24px #000;font-family:Georgia,"Times New Roman",serif;';
+    root.appendChild(this.wastedEl);
 
     const help = document.createElement('div');
     help.innerHTML =
@@ -108,9 +128,16 @@ export class HUD {
     mode: Mode,
     player: { x: number; z: number; heading: number },
     cars: ReadonlyArray<{ x: number; z: number }>,
+    health: number,
+    wasted: boolean,
   ): void {
     this.speedEl.textContent = String(Math.round(speedKmh));
     this.modeEl.textContent = mode === 'driving' ? '🚗 DRIVING' : '🚶 ON FOOT';
+
+    const h = Math.max(0, Math.min(100, health));
+    this.healthFill.style.width = `${h}%`;
+    this.healthFill.style.background = h > 50 ? '#54ff84' : h > 20 ? '#ffd24a' : '#ff5a4a';
+    this.wastedEl.style.display = wasted ? 'flex' : 'none';
 
     const ctx = this.mapCtx;
     ctx.clearRect(0, 0, MAP_SIZE, MAP_SIZE);

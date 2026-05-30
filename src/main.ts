@@ -60,6 +60,17 @@ let mode: Mode = 'driving';
 player.x = city.center.x;
 player.z = city.center.z;
 
+const MAX_HEALTH = 100;
+const HIT_SPEED = 3; // m/s a car must exceed to injure a pedestrian
+const DAMAGE_PER_SPEED = 5; // health lost per m/s of impact
+const KNOCKBACK = 1.6;
+const WASTED_TIME = 3; // seconds the WASTED screen holds before respawn
+
+let health = MAX_HEALTH;
+let wasted = false;
+let wastedTimer = 0;
+let pedContact = false; // were we in contact with a car last frame (edge-trigger)
+
 const clampToCity = (p: { x: number; z: number }): void => {
   const b = city.half - 2;
   p.x = Math.max(-b, Math.min(b, p.x));
@@ -109,15 +120,54 @@ function updateFoot(dt: number): void {
   clampToCity(player);
 }
 
+function enterWasted(): void {
+  wasted = true;
+  wastedTimer = WASTED_TIME;
+  health = 0;
+}
+
+function respawn(): void {
+  wasted = false;
+  health = MAX_HEALTH;
+  pedContact = false;
+  mode = 'foot';
+  player.x = city.center.x;
+  player.z = city.center.z + 6;
+  player.heading = 0;
+}
+
+/** While on foot, take damage from cars that hit us; trigger WASTED at zero. */
+function checkPedestrianDamage(): void {
+  const hit = vehicles.pedestrianImpact(player.x, player.z);
+  const contact = !!hit && hit.speed > HIT_SPEED;
+  if (contact && !pedContact) {
+    health -= hit!.speed * DAMAGE_PER_SPEED;
+    player.x += hit!.nx * KNOCKBACK;
+    player.z += hit!.nz * KNOCKBACK;
+    if (health <= 0) enterWasted();
+  }
+  pedContact = contact;
+}
+
 function update(dt: number): void {
+  if (wasted) {
+    wastedTimer -= dt;
+    vehicles.update(city, dt, null, null);
+    peds.update(city, dt);
+    if (wastedTimer <= 0) respawn();
+    input.endFrame();
+    return;
+  }
+
   if (input.wasPressed('KeyF') || input.wasPressed('KeyE')) toggleVehicle();
 
   if (mode === 'driving') {
     if (input.wasPressed('KeyR')) vehicles.resetPlayer(city);
-    vehicles.update(city, dt, drivingInput());
+    vehicles.update(city, dt, drivingInput(), null);
   } else {
-    vehicles.update(city, dt, null);
+    vehicles.update(city, dt, null, { x: player.x, z: player.z });
     updateFoot(dt);
+    checkPedestrianDamage();
   }
 
   peds.update(city, dt);
@@ -167,7 +217,7 @@ function render(): void {
   follow.update(active.x, active.z, active.heading, mode === 'driving' ? CAR_CAM : FOOT_CAM, dt);
 
   const speedKmh = mode === 'driving' ? toKmh(vehicles.playerForwardSpeed()) : toKmh(player.speed);
-  hud.update(speedKmh, mode, active, vehicles.positions());
+  hud.update(speedKmh, mode, active, vehicles.positions(), health, wasted);
   env.render();
 }
 
@@ -175,6 +225,8 @@ declare global {
   interface Window {
     __game?: {
       readonly mode: Mode;
+      readonly health: number;
+      readonly wasted: boolean;
       vehicles: Vehicles;
       player: Player;
       city: typeof city;
@@ -184,6 +236,12 @@ declare global {
 window.__game = {
   get mode() {
     return mode;
+  },
+  get health() {
+    return health;
+  },
+  get wasted() {
+    return wasted;
   },
   vehicles,
   player,
