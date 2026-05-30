@@ -330,6 +330,20 @@ try {
     JSON.stringify({ ...setup, everScared, lastD }),
   );
 
+  // --- 10. Radio keeps playing after you get out of the car.
+  await reset();
+  await page.keyboard.press('KeyW'); // gesture: tune in the spawn car's radio
+  await page.waitForTimeout(300);
+  const inCar = await page.evaluate(() => window.__game.radioLabel);
+  await page.keyboard.press('KeyF'); // step out
+  await page.waitForTimeout(300);
+  const onFoot = await page.evaluate(() => window.__game.radioLabel);
+  check(
+    'radio keeps playing after exiting the car',
+    inCar.startsWith('📻') && inCar !== '📻 OFF' && onFoot === inCar,
+    `in-car "${inCar}" -> on-foot "${onFoot}"`,
+  );
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();

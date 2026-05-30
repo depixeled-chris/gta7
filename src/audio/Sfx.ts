@@ -1,3 +1,5 @@
+import { engineToneHz } from '../core/math';
+
 /**
  * Synthesized sound effects via the Web Audio API — no audio files. An engine
  * drone whose pitch tracks speed, tyre screech from filtered noise, a noise
@@ -25,8 +27,11 @@ export class Sfx {
     const ctx = new Ctor();
     this.ctx = ctx;
     this.master = ctx.createGain();
-    this.master.gain.value = 1.1; // doubled default — SFX were too quiet vs the radio (a volume menu is coming)
-    this.master.connect(ctx.destination);
+    this.master.gain.value = 2.2; // pushed louder again; a compressor tames the peaks
+    // Limiter so the boosted gain doesn't clip harshly when effects stack.
+    const comp = ctx.createDynamicsCompressor();
+    this.master.connect(comp);
+    comp.connect(ctx.destination);
     this.noise = this.makeNoise(1);
 
     // Engine: a sawtooth through a lowpass; frequency rises with speed.
@@ -69,13 +74,16 @@ export class Sfx {
     return buf;
   }
 
-  /** Continuous engine note: on only while driving, pitch from normalized speed. */
+  /**
+   * Continuous engine note: on only while driving. Pitch follows a faked
+   * automatic gearbox (rises through a gear, drops on the upshift). The short
+   * smoothing time makes each shift read as a quick blip rather than a step.
+   */
   setEngine(on: boolean, speed01: number): void {
     if (!this.ctx || !this.engineGain || !this.engineOsc) return;
     const t = this.ctx.currentTime;
     this.engineGain.gain.setTargetAtTime(on ? 0.05 : 0, t, 0.1);
-    const s = Math.max(0, Math.min(1, speed01));
-    this.engineOsc.frequency.setTargetAtTime(45 + s * 120, t, 0.08);
+    this.engineOsc.frequency.setTargetAtTime(engineToneHz(speed01), t, 0.05);
   }
 
   /** Tyre screech level (0–1) — driven by lateral slip / hard braking. */

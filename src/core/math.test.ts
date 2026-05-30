@@ -10,6 +10,7 @@ import {
   stickVector,
   starsFromHeat,
   leadTime,
+  engineToneHz,
 } from './math';
 
 describe('clamp', () => {
@@ -82,6 +83,20 @@ describe('leadTime', () => {
   });
   it('matches gap / closing speed below the cap', () => {
     expect(leadTime(40, 10, 10, 5)).toBeCloseTo(2); // 40 / 20
+  });
+});
+
+describe('engineToneHz', () => {
+  it('rises within a gear and drops at the upshift', () => {
+    const gears = 5;
+    // Just before the first upshift (1/5) the pitch is high; just after, it drops.
+    const before = engineToneHz(0.2 - 0.001, gears);
+    const after = engineToneHz(0.2 + 0.001, gears);
+    expect(before).toBeGreaterThan(after);
+  });
+  it('idles low and never drops below idle', () => {
+    expect(engineToneHz(0)).toBeCloseTo(48, 0);
+    for (let s = 0; s <= 1; s += 0.05) expect(engineToneHz(s)).toBeGreaterThanOrEqual(48 - 1e-6);
   });
 });
 

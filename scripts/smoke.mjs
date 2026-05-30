@@ -43,7 +43,7 @@ try {
       hasCanvas: !!c,
       w: c?.width ?? 0,
       h: c?.height ?? 0,
-      hud: document.body.innerText.includes('KM/H'),
+      hud: document.body.innerText.includes('MPH'),
       mode: /DRIVING|ON FOOT/.test(document.body.innerText),
     };
   });

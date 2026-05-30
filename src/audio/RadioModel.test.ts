@@ -79,6 +79,16 @@ describe('RadioModel', () => {
     expect(r.trackIndex).toBeLessThan(3);
   });
 
+  it('tuneTo jumps to a specific station (clamped)', () => {
+    const r = new RadioModel(stations);
+    r.tuneTo(1);
+    expect(r.current()?.station).toBe('B');
+    r.tuneTo(99); // clamped to the last station
+    expect(r.current()?.station).toBe('B');
+    r.tuneTo(0);
+    expect(r.current()?.station).toBe('A');
+  });
+
   it('does nothing with no stations', () => {
     const r = new RadioModel([]);
     r.cycleStation(1);

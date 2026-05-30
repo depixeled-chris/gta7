@@ -13,7 +13,7 @@ import { GameLoop } from './core/GameLoop';
 import { lerp, angleLerp, starsFromHeat } from './core/math';
 import { Radio } from './audio/Radio';
 import { Sfx } from './audio/Sfx';
-import { toKmh, DEFAULT_VEHICLE, type VehicleInput } from './vehicles/VehicleModel';
+import { toMph, DEFAULT_VEHICLE, type VehicleInput } from './vehicles/VehicleModel';
 
 /** Touch UI + lower quality on coarse-pointer devices; `?touch=1|0` forces it. */
 function isTouchDevice(): boolean {
@@ -83,6 +83,7 @@ const player = new Player();
 // silent until the first user gesture (browser autoplay policy).
 let radio: Radio | null = null;
 let radioPrimed = false;
+let radioCarIndex: number | null = null; // which car's radio is currently loaded
 let userGestured = false;
 const sfx = new Sfx();
 const markGesture = (): void => {
@@ -149,14 +150,14 @@ function toggleVehicle(): void {
     player.heading = pose.heading;
     vehicles.exit();
     mode = 'foot';
-    radio?.exitCar();
     sfx.exitCar();
   } else {
     const i = vehicles.nearest(player.x, player.z, ENTER_DISTANCE);
     if (i >= 0) {
       vehicles.enter(i);
       mode = 'driving';
-      radio?.enterCar();
+      radio?.enterCar(i);
+      radioCarIndex = i;
       radioPrimed = true;
       sfx.enterCar();
     }
@@ -284,7 +285,9 @@ function update(dt: number): void {
     if (step !== 0) radio.step(step);
     // Spawned in a car: tune in once the player has gestured (autoplay rules).
     if (!radioPrimed && userGestured && mode === 'driving') {
-      radio.enterCar();
+      const i = vehicles.playerIndex ?? 0;
+      radio.enterCar(i);
+      radioCarIndex = i;
       radioPrimed = true;
     }
   }
@@ -343,8 +346,8 @@ function render(alpha: number, frameDt: number): void {
 
   follow.update(active.x, active.z, active.heading, mode === 'driving' ? CAR_CAM : FOOT_CAM, frameDt);
 
-  const speedKmh = mode === 'driving' ? toKmh(vehicles.playerForwardSpeed()) : toKmh(player.speed);
-  hud.update(speedKmh, mode, active, vehicles.positions(), health, wasted);
+  const speedMph = mode === 'driving' ? toMph(vehicles.playerForwardSpeed()) : toMph(player.speed);
+  hud.update(speedMph, mode, active, vehicles.positions(), health, wasted);
   hud.setRunOverCount(peds.runOverCount);
   hud.setRadio(radio ? radio.label() : '📻 OFF');
   hud.setWanted(stars);
@@ -352,6 +355,14 @@ function render(alpha: number, frameDt: number): void {
   const driving = mode === 'driving';
   sfx.setEngine(driving, Math.abs(vehicles.playerForwardSpeed()) / DEFAULT_VEHICLE.maxSpeed);
   sfx.setScreech(driving ? Math.max(0, (vehicles.playerLateralSpeed() - 2) / 8) : 0);
+
+  if (radio && radioCarIndex !== null) {
+    if (driving) radio.updateProximity(true, 0);
+    else {
+      const cp = vehicles.carPosition(radioCarIndex);
+      radio.updateProximity(false, Math.hypot(player.x - cp.x, player.z - cp.z));
+    }
+  }
 
   env.render();
 }

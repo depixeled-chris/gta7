@@ -50,6 +50,13 @@ export class RadioModel {
     if (this.order.length) this.pos = Math.floor(this.rand() * this.order.length);
   }
 
+  /** Jump to a specific station (clamped) and tune in mid-broadcast. */
+  tuneTo(stationIndex: number): void {
+    if (this.stations.length === 0) return;
+    this.stationIndex = Math.max(0, Math.min(this.stations.length - 1, stationIndex));
+    this.tuneInRandom();
+  }
+
   nextTrack(): void {
     if (!this.isOn || this.order.length === 0) return;
     this.pos++;

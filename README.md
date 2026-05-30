@@ -22,8 +22,8 @@
 - **Ambient life** — traffic looping the avenues and pedestrians milling the streets.
 - **Wanted level & police chase** — run people over and your heat climbs into a ★–★★★★★ wanted rating; every star puts another cop car on your tail (flashing lights and all). They use steering-behavior AI — they lead/intercept you, fan out instead of stacking up, and veer around buildings. Getting WASTED clears it.
 - **Pedestrians react** — get close on foot and they panic: trembling and bolting away from you.
-- **Synthesized sound** — an engine note that tracks your speed, tyre screech when you drift, a crunch when you gib someone, and door blips getting in/out — all generated in-browser, no audio files.
-- **Car radio** — 7 stations of original music streamed from a CDN (never bundled); tune with `[` / `]`. Every car drops you into the middle of a track like a live broadcast, and the next song is prefetched while the current one plays.
+- **Synthesized sound** — an engine note with a faked automatic gearbox (revs climb, then drop on each upshift), tyre screech when you drift, a crunch when you gib someone, and door blips getting in/out — all generated in-browser, no audio files.
+- **Car radio** — 7 stations of original music streamed from a CDN (never bundled); tune with `[` / `]`. Each car remembers its own (initially random) station, drops you in mid-broadcast, and keeps playing after you get out — fading with distance as you walk away. The next song is prefetched while the current one plays.
 - **Plays on mobile** — keyboard on desktop, an on-screen analog joystick + action buttons on touch devices (auto-detected), with quality scaled down for phone GPUs.
 - **HUD + live minimap** — speedometer, health, mode indicator, and a top-down radar of the city and traffic.
 - **Backed by tests** — the simulation core (vehicle physics, city generation, collision, RNG) is pure and unit-tested; headless-Chromium tests prove the scene renders *and* that driving, carjacking, and collisions actually work.

@@ -33,6 +33,24 @@ export const starsFromHeat = (heat: number): number =>
 export const leadTime = (gap: number, pursuerSpeed: number, targetSpeed: number, maxLead: number): number =>
   Math.min(maxLead, gap / Math.max(1e-3, pursuerSpeed + targetSpeed));
 
+/**
+ * Engine note frequency for a faked automatic gearbox. Normalized speed (0–1)
+ * is split into `gears`; within each gear the pitch ramps idle→idle+span, then
+ * drops back to idle at the upshift — the classic rising-then-dropping engine
+ * sound. Pure, so the shift behavior is unit-testable.
+ */
+export const engineToneHz = (
+  speed01: number,
+  gears = 5,
+  idleHz = 48,
+  spanHz = 80,
+): number => {
+  const s = clamp(speed01, 0, 1);
+  const g = Math.min(gears - 1, Math.floor(s * gears));
+  const within = s * gears - g; // 0..1 progress through the current gear
+  return idleHz + within * spanHz;
+};
+
 export const moveToward = (current: number, target: number, maxDelta: number): number => {
   const diff = target - current;
   if (Math.abs(diff) <= maxDelta) return target;

@@ -40,7 +40,7 @@ export class HUD {
     this.speedEl = document.createElement('div');
     this.speedEl.style.cssText = `font-size:${touch ? 30 : 46}px;font-weight:700;letter-spacing:-1px;`;
     const unit = document.createElement('div');
-    unit.textContent = 'KM/H';
+    unit.textContent = 'MPH';
     unit.style.cssText = 'font-size:13px;opacity:.6;margin-top:2px;';
     speedBox.append(this.speedEl, unit);
     root.appendChild(speedBox);

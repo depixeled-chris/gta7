@@ -42,12 +42,12 @@ export interface VehicleConfig {
 }
 
 export const DEFAULT_VEHICLE: VehicleConfig = {
-  enginePower: 19,
+  enginePower: 13, // lower accel: it takes a while to wind up to top speed
   brakePower: 34,
-  reverseMaxSpeed: 13,
-  maxSpeed: 64, // ~230 km/h
-  drag: 0.22,
-  rollingResistance: 5,
+  reverseMaxSpeed: 16,
+  maxSpeed: 90, // ~200 mph — fast enough that the readout matches the sensation
+  drag: 0.06, // light drag so the high top speed is reachable
+  rollingResistance: 4,
   turnRate: 2.7,
   gripSpeed: 9,
   gripNormal: 10,
@@ -134,3 +134,6 @@ export const lateralSpeedOf = (s: VehicleState): number =>
 
 /** Speed magnitude in km/h for the HUD. */
 export const toKmh = (speed: number): number => Math.abs(speed) * 3.6;
+
+/** Speed magnitude in mph for the HUD. */
+export const toMph = (speed: number): number => Math.abs(speed) * 2.236936;

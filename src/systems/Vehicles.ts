@@ -504,4 +504,10 @@ export class Vehicles {
   positions(): Array<{ x: number; z: number }> {
     return this.cars.map((c) => ({ x: c.x, z: c.z }));
   }
+
+  /** World position of car `i` (e.g. to fade its radio as you walk away). */
+  carPosition(i: number): { x: number; z: number } {
+    const c = this.cars[i];
+    return { x: c.x, z: c.z };
+  }
 }
