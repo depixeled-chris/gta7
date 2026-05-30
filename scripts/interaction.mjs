@@ -524,6 +524,16 @@ try {
     `gap ${leash.gap0.toFixed(0)} -> ${resummoned.gap.toFixed(0)}`,
   );
 
+  // --- 12d. A damaged car trails smoke particles.
+  await reset();
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.vehicles.cars[g.vehicles.playerIndex].health = 20; // badly damaged, not wrecked
+  });
+  await page.waitForTimeout(400);
+  const smoke = await page.evaluate(() => window.__game.vehicles.smokeParticles());
+  check('a damaged car emits smoke particles', smoke > 0, `live particles=${smoke}`);
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();

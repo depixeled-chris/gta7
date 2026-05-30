@@ -32,6 +32,14 @@ Keep _Shipped_ compact (one line per item; collapse old detail). When in doubt, 
 - [R003] 🔬 Car profiles + mass — @maintainer · data-driven `CarProfile` (sports/truck/interceptor); see Researched. Damage model (R002) is in, so per-car mass/health now has a home.
 - [R004] 🔵 Proper car-car collision / no clipping — @maintainer · cars pass through each other at intersections; AI yielding (grid + damage now in place)
 
+## 🟢 World-gen epic (PAUSED — research turn pending)
+The maintainer expanded R005 into a full generative-world vision: streamed chunks
+with **noise-driven biomes** (city cores → suburbs → rural), a **highway** layer,
+**rivers + bridges**, variety in **buildings/streets/cars**, proper **AOI** + density,
+and **Rust→WASM** wherever it earns real perf. Explicitly asked for a research
+foundation first. Pulls in R005 (variety), R007 (chunking), R009 (WASM, un-deferred
+for re-evaluation at this scale). Next research turn → `docs/research/generative-world.md`.
+
 ## 🔵 Queued (triaged, not started)
 - [R005] 🔵 Street & building variety — @maintainer · more shapes/colours/props/street dressing
 - [R006] 🔵 In-game options menu — @maintainer · volume sliders (radio vs SFX), maybe quality toggle
@@ -63,5 +71,10 @@ pedestrians fear the **car** (proximity + vector-dodge), not the on-foot player 
 the original **zero-shot build** is published at `/gta7/zero-shot/` (frozen snapshot in `public/zero-shot/`) ·
 [R001] spatial-grid collision (uniform hash, equivalence unit-tested) — the single collision-query authority ·
 [R002] damage model: cars take crash damage & explode when wrecked (player → WASTED, NPC → recycled); HUD shows car integrity while driving ·
-[R014] police rubber-band pursuit + re-leash — an outrun cop ramps up to close the gap (capped under player top speed) and a hopelessly-far one is re-summoned near you, instead of crawling at a fixed speed.
+[R014] police rubber-band pursuit + re-leash — an outrun cop ramps up to close the gap (capped under player top speed) and a hopelessly-far one is re-summoned near you, instead of crawling at a fixed speed ·
+crash damage softened (no single hit totals an intact car) + louder footsteps ·
+[R020] iOS audio unlock — radio primed in-gesture so sound starts on first tap ·
+[R021] damaged cars trail **smoke particles** (billboard sprites, not geometry), thicker as they near wrecking ·
+[R022] touch buttons use **lucide** SVG icons (no more "F" glyph) ·
+[R019] fullscreen toggle button + PWA/home-screen path & safe-area insets (iPhone Safari has no element-fullscreen API → Add-to-Home-Screen is the true-fullscreen route).
 Requester credits: [README](README.md#requested-by-the-internet).

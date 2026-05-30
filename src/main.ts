@@ -86,14 +86,27 @@ const player = new Player();
 let radio: Radio | null = null;
 let radioPrimed = false;
 let radioCarIndex: number | null = null; // which car's radio is currently loaded
-let userGestured = false;
 const sfx = new Sfx();
 const markGesture = (): void => {
-  userGestured = true;
   sfx.start(); // create/resume the audio context within the gesture
+  primeRadio(); // iOS only lets the <audio> element start from inside a gesture
 };
 addEventListener('keydown', markGesture);
 addEventListener('pointerdown', markGesture);
+
+/**
+ * Kick the radio off. MUST be reachable from a user-gesture call stack: iOS
+ * Safari refuses HTMLAudioElement.play() outside one, so priming from the game
+ * loop left the radio silent until the player tapped the radio button. Called
+ * from markGesture and retried each gesture until the manifest has loaded.
+ */
+function primeRadio(): void {
+  if (!radio || radioPrimed || mode !== 'driving') return;
+  const i = vehicles.playerIndex ?? 0;
+  radio.enterCar(i);
+  radioCarIndex = i;
+  radioPrimed = true;
+}
 
 interface RadioManifest {
   baseUrl: string;
@@ -333,13 +346,6 @@ function update(dt: number): void {
   if (radio) {
     const step = controls.radioStep();
     if (step !== 0) radio.step(step);
-    // Spawned in a car: tune in once the player has gestured (autoplay rules).
-    if (!radioPrimed && userGestured && mode === 'driving') {
-      const i = vehicles.playerIndex ?? 0;
-      radio.enterCar(i);
-      radioCarIndex = i;
-      radioPrimed = true;
-    }
   }
 
   updateBusted(dt);

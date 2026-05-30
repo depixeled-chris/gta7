@@ -41,6 +41,19 @@ try {
   );
   check('on-screen controls render on a touch device', present);
 
+  // Buttons use real (lucide) SVG icons, and a fullscreen toggle is present.
+  const iconified = await page.evaluate(() => ({
+    enterHasSvg: !!document.querySelector('#tc-enter svg'),
+    radioHasSvg: !!document.querySelector('#tc-radio svg'),
+    fullscreen: !!document.getElementById('tc-fullscreen'),
+    noFglyph: !/\bF\b/.test(document.getElementById('tc-enter').textContent || ''),
+  }));
+  check(
+    'touch buttons use SVG icons + fullscreen toggle present',
+    iconified.enterHasSvg && iconified.radioHasSvg && iconified.fullscreen && iconified.noFglyph,
+    JSON.stringify(iconified),
+  );
+
   // Joystick: push up and the car should accelerate from rest.
   const stick = await center(page, '#tc-stick');
   await page.evaluate((p) => {

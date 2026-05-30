@@ -1,4 +1,24 @@
 import { stickVector } from '../core/math';
+import {
+  createElement,
+  type IconNode,
+  Car,
+  Hand,
+  ChevronsRight,
+  RotateCcw,
+  Radio,
+  Maximize,
+  Minimize,
+} from 'lucide';
+
+/** Build a lucide SVG sized for a control, transparent to pointer events. */
+function icon(node: IconNode, size = 30): SVGElement {
+  const svg = createElement(node);
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.style.pointerEvents = 'none';
+  return svg;
+}
 
 /**
  * On-screen controls for touch devices: a left analog joystick (steer +
@@ -43,7 +63,8 @@ export class TouchControls {
     this.base = div(
       root,
       'tc-stick',
-      'position:absolute;left:26px;bottom:26px;width:140px;height:140px;border-radius:50%;' +
+      'position:absolute;left:calc(26px + env(safe-area-inset-left));' +
+        'bottom:calc(26px + env(safe-area-inset-bottom));width:140px;height:140px;border-radius:50%;' +
         'background:rgba(20,26,40,.4);border:2px solid rgba(255,255,255,.18);pointer-events:auto;touch-action:none;',
     );
     this.knob = div(
@@ -77,14 +98,15 @@ export class TouchControls {
     const pad = div(
       root,
       'tc-buttons',
-      'position:absolute;right:20px;bottom:20px;display:grid;grid-template-columns:repeat(2,66px);' +
+      'position:absolute;right:calc(20px + env(safe-area-inset-right));' +
+        'bottom:calc(20px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(2,66px);' +
         'grid-auto-rows:66px;gap:12px;pointer-events:none;',
     );
-    this.holdButton(pad, 'tc-enter', 'F', 'enter / exit', () => (this.enterEdge = true));
+    this.holdButton(pad, 'tc-enter', Car, 'enter / exit', () => (this.enterEdge = true));
     this.holdButton(
       pad,
       'tc-brake',
-      '✋',
+      Hand,
       'handbrake',
       () => (this.brakeHeld = true),
       () => (this.brakeHeld = false),
@@ -92,13 +114,54 @@ export class TouchControls {
     this.holdButton(
       pad,
       'tc-sprint',
-      '»',
+      ChevronsRight,
       'sprint',
       () => (this.sprintHeld = true),
       () => (this.sprintHeld = false),
     );
-    this.holdButton(pad, 'tc-reset', '⟲', 'reset', () => (this.resetEdge = true));
-    this.holdButton(pad, 'tc-radio', '📻', 'radio', () => (this.radioEdge = true));
+    this.holdButton(pad, 'tc-reset', RotateCcw, 'reset', () => (this.resetEdge = true));
+    this.holdButton(pad, 'tc-radio', Radio, 'radio', () => (this.radioEdge = true));
+
+    this.addFullscreenButton(root);
+  }
+
+  /**
+   * Top-right fullscreen toggle. Uses the Fullscreen API where it exists
+   * (Android Chrome, iPadOS, desktop). iPhone Safari has no element-fullscreen
+   * API at all — there the real path is Add to Home Screen (the PWA meta tags in
+   * index.html make that launch chrome-less), so the button just no-ops there.
+   */
+  private addFullscreenButton(root: HTMLElement): void {
+    const el = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => void;
+    };
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element;
+      webkitExitFullscreen?: () => void;
+    };
+    const btn = div(
+      root,
+      'tc-fullscreen',
+      'position:absolute;top:calc(14px + env(safe-area-inset-top));' +
+        'right:calc(14px + env(safe-area-inset-right));width:54px;height:54px;border-radius:50%;' +
+        'pointer-events:auto;touch-action:none;display:flex;align-items:center;justify-content:center;' +
+        'background:rgba(20,26,40,.55);border:2px solid rgba(255,255,255,.22);color:#e8ecf5;',
+    );
+    btn.setAttribute('aria-label', 'fullscreen');
+    const isFull = (): boolean => !!(document.fullscreenElement || doc.webkitFullscreenElement);
+    const paint = (): void => {
+      btn.replaceChildren(icon(isFull() ? Minimize : Maximize, 26));
+    };
+    paint();
+    document.addEventListener('fullscreenchange', paint);
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (isFull()) {
+        (document.exitFullscreen ?? doc.webkitExitFullscreen)?.call(document);
+      } else {
+        (el.requestFullscreen ?? el.webkitRequestFullscreen)?.call(el);
+      }
+    });
   }
 
   private moveStick(clientX: number, clientY: number): void {
@@ -112,7 +175,7 @@ export class TouchControls {
   private holdButton(
     parent: HTMLElement,
     id: string,
-    glyph: string,
+    glyph: IconNode,
     label: string,
     onDown: () => void,
     onUp?: () => void,
@@ -121,10 +184,10 @@ export class TouchControls {
       parent,
       id,
       'width:66px;height:66px;border-radius:50%;pointer-events:auto;touch-action:none;' +
-        'display:flex;align-items:center;justify-content:center;font-size:27px;' +
+        'display:flex;align-items:center;justify-content:center;' +
         'background:rgba(20,26,40,.55);border:2px solid rgba(255,255,255,.22);color:#e8ecf5;',
     );
-    b.textContent = glyph;
+    b.appendChild(icon(glyph));
     b.setAttribute('aria-label', label);
     b.addEventListener('pointerdown', (e) => {
       onDown();

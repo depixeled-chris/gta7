@@ -5,6 +5,7 @@ import { damp, lerp, angleLerp, safeApproachSpeed, leadTime, pursuitSpeed } from
 import { makeCar } from '../render/Assets';
 import { circleOverlap, nearestIndex } from './Collision';
 import { Debris } from './Debris';
+import { Smoke } from './Smoke';
 import {
   stepVehicle,
   speedOf,
@@ -56,6 +57,7 @@ const LANE_CORRECT = 2.2; // how hard AI steers back to lane centerline
 const AI_RECOVER = 2.6; // how fast AI velocity returns to cruise after a hit
 const PARK_FRICTION = 1.8; // how fast an abandoned/shoved car coasts to rest
 const RESTITUTION = 0.4; // bounciness of car-on-car impacts
+const SMOKE_HEALTH = 50; // below this a car visibly smokes; worse as it nears 0
 
 const PED_LANE_HALF = 2.6; // how wide a car watches for a pedestrian in its path
 const PED_STOP_GAP = 5; // distance ahead of a pedestrian a car aims to stop
@@ -94,12 +96,14 @@ export class Vehicles {
   private steer = 0;
   private flash = 0; // render-frame counter for the flashing police lights
   private readonly debris: Debris;
+  private readonly smoke: Smoke;
   private explosions = 0; // car wrecks since main last consumed them (for SFX)
   private playerWreckPending = false; // player car blew up → main triggers WASTED
   wreckCount = 0; // monotonic total wrecks (debug/telemetry)
 
   constructor(scene: THREE.Scene, city: City, trafficCount = 40, seed = 909) {
     this.debris = new Debris(scene);
+    this.smoke = new Smoke(scene);
     this.spawn(scene, makeCar(PLAYER_COLOR), PLAYER_COLOR, city.center.x, city.center.z, 0, 'parked', null, 0);
 
     const rng = createRng(seed);
@@ -195,6 +199,13 @@ export class Vehicles {
     }
 
     this.collide(city);
+
+    // A car under half health trails smoke, thicker the closer it is to wrecking.
+    for (const car of this.cars) {
+      if (!car.active || car.health >= SMOKE_HEALTH) continue;
+      this.smoke.emit(car.x, car.z, 1 - car.health / SMOKE_HEALTH, dt);
+    }
+    this.smoke.update(dt);
     this.debris.update(dt);
 
     if (this.playerIndex !== null) {
@@ -543,6 +554,11 @@ export class Vehicles {
     const w = this.playerWreckPending;
     this.playerWreckPending = false;
     return w;
+  }
+
+  /** Live smoke-particle count (debug/telemetry). */
+  smokeParticles(): number {
+    return this.smoke.activeCount();
   }
 
   /** Player car body integrity (0–100), or full health on foot. */
