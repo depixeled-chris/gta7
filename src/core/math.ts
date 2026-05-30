@@ -34,6 +34,14 @@ export const leadTime = (gap: number, pursuerSpeed: number, targetSpeed: number,
   Math.min(maxLead, gap / Math.max(1e-3, pursuerSpeed + targetSpeed));
 
 /**
+ * Rubber-band chase speed: a pursuer cruises at `base` when close and ramps
+ * toward `max` the further the target pulls away, so a fast quarry can't simply
+ * leave police standing. `gain` is the extra m/s of speed per metre of gap.
+ */
+export const pursuitSpeed = (gap: number, base: number, max: number, gain: number): number =>
+  Math.min(max, base + Math.max(0, gap) * gain);
+
+/**
  * Engine note frequency for a faked automatic gearbox. Normalized speed (0–1)
  * is split into `gears`; within each gear the pitch ramps idle→idle+span, then
  * drops back to idle at the upshift — the classic rising-then-dropping engine

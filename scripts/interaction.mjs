@@ -444,6 +444,67 @@ try {
     JSON.stringify(npcWrecked),
   );
 
+  // --- 13. Outrunning cops: a cop left far behind closes the gap (rubber-band).
+  await reset();
+  // Raise a single wanted star (one ped) so exactly one cruiser chases — a clean
+  // test of pursuit speed without cruisers fanning each other out (separation).
+  await page.evaluate(() => {
+    const g = window.__game;
+    const p = g.vehicles.cars[g.vehicles.playerIndex];
+    const ped = g.peds.peds[0];
+    ped.state = 'walk'; ped.group.visible = true; ped.y = 0; ped.tumble = 0;
+    ped.x = p.x + 7; ped.z = p.z;
+    p.heading = 0; p.vx = 24; p.vz = 0;
+  });
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(900);
+  await page.keyboard.up('KeyW');
+  const closeIn = await page.evaluate(() => {
+    const g = window.__game;
+    const v = g.vehicles;
+    const p = v.cars[v.playerIndex];
+    // Park the player, shove the active cop far away (within the leash) and
+    // measure whether it can claw the distance back.
+    p.vx = 0; p.vz = 0;
+    const cop = v.cars.find((c) => c.role === 'police' && c.active);
+    cop.x = p.x + 120; cop.z = p.z; cop.vx = 0; cop.vz = 0;
+    return { gap0: v.nearestPoliceDistance(p.x, p.z) };
+  });
+  await page.waitForTimeout(1000);
+  const closed = await page.evaluate(() => {
+    const v = window.__game.vehicles;
+    const p = v.cars[v.playerIndex];
+    return { gap: v.nearestPoliceDistance(p.x, p.z), busted: window.__game.busted };
+  });
+  check(
+    // ~30 m of net closing in 1 s while weaving through the city blocks; the old
+    // fixed 28 m/s crawl couldn't make up ground on a stationary target at all.
+    'an outrun cop claws the gap back (rubber-band pursuit)',
+    closeIn.gap0 > 110 && closed.gap < closeIn.gap0 - 25 && !closed.busted,
+    `gap ${closeIn.gap0.toFixed(0)} -> ${closed.gap.toFixed(0)}`,
+  );
+
+  // --- 13b. A cop left beyond the leash is re-summoned near you.
+  const leash = await page.evaluate(() => {
+    const v = window.__game.vehicles;
+    const p = v.cars[v.playerIndex];
+    p.vx = 0; p.vz = 0;
+    const cop = v.cars.find((c) => c.role === 'police' && c.active);
+    cop.x = p.x + 240; cop.z = p.z; cop.vx = 0; cop.vz = 0; // way past the leash
+    return { gap0: v.nearestPoliceDistance(p.x, p.z) };
+  });
+  await page.waitForTimeout(200);
+  const resummoned = await page.evaluate(() => {
+    const v = window.__game.vehicles;
+    const p = v.cars[v.playerIndex];
+    return { gap: v.nearestPoliceDistance(p.x, p.z) };
+  });
+  check(
+    'a cop left beyond the leash is re-summoned near you',
+    leash.gap0 > 230 && resummoned.gap < 120,
+    `gap ${leash.gap0.toFixed(0)} -> ${resummoned.gap.toFixed(0)}`,
+  );
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();

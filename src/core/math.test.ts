@@ -10,6 +10,7 @@ import {
   stickVector,
   starsFromHeat,
   leadTime,
+  pursuitSpeed,
   engineToneHz,
 } from './math';
 
@@ -105,6 +106,18 @@ describe('moveToward', () => {
     expect(moveToward(0, 10, 3)).toBe(3);
     expect(moveToward(0, 2, 3)).toBe(2);
     expect(moveToward(10, 0, 3)).toBe(7);
+  });
+});
+
+describe('pursuitSpeed', () => {
+  it('cruises at base when the target is right there', () => {
+    expect(pursuitSpeed(0, 30, 82, 0.5)).toBe(30);
+  });
+  it('ramps up with the gap', () => {
+    expect(pursuitSpeed(40, 30, 82, 0.5)).toBe(50); // 30 + 40*0.5
+  });
+  it('never exceeds the cap, however far the target runs', () => {
+    expect(pursuitSpeed(10000, 30, 82, 0.5)).toBe(82);
   });
 });
 

@@ -62,5 +62,6 @@ synthesized SFX (gearbox engine, screech, gib, blips) · ~200 mph + MPH readout 
 pedestrians fear the **car** (proximity + vector-dodge), not the on-foot player ·
 the original **zero-shot build** is published at `/gta7/zero-shot/` (frozen snapshot in `public/zero-shot/`) ·
 [R001] spatial-grid collision (uniform hash, equivalence unit-tested) — the single collision-query authority ·
-[R002] damage model: cars take crash damage & explode when wrecked (player → WASTED, NPC → recycled); HUD shows car integrity while driving.
+[R002] damage model: cars take crash damage & explode when wrecked (player → WASTED, NPC → recycled); HUD shows car integrity while driving ·
+[R014] police rubber-band pursuit + re-leash — an outrun cop ramps up to close the gap (capped under player top speed) and a hopelessly-far one is re-summoned near you, instead of crawling at a fixed speed.
 Requester credits: [README](README.md#requested-by-the-internet).

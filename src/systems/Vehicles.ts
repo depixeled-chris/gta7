@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { City, Lane } from '../world/City';
 import { createRng } from '../core/rng';
-import { damp, lerp, angleLerp, safeApproachSpeed, leadTime } from '../core/math';
+import { damp, lerp, angleLerp, safeApproachSpeed, leadTime, pursuitSpeed } from '../core/math';
 import { makeCar } from '../render/Assets';
 import { circleOverlap, nearestIndex } from './Collision';
 import { Debris } from './Debris';
@@ -65,9 +65,12 @@ const PED_REACH = CAR_RADIUS + 0.5; // contact distance for running a pedestrian
 
 const POLICE_COLOR = 0x12131c;
 const POLICE_POOL = 5; // one per wanted star
-const POLICE_SPEED = 28; // faster than traffic, slower than the player's top speed
-const POLICE_ACCEL = 2.6;
+const POLICE_SPEED = 32; // base cruise; rubber-bands up with the gap (pursuitSpeed)
+const POLICE_MAX_SPEED = 82; // chase ceiling — under the player's ~90 so escape is possible but hard
+const POLICE_RUBBERBAND = 0.6; // extra m/s of chase speed per metre of gap
+const POLICE_ACCEL = 5; // how hard cruisers wind up to their chase speed
 const POLICE_SPAWN_DIST = 72; // how far from the player a cruiser appears
+const POLICE_LEASH = 150; // a cop that falls beyond this is re-summoned near the player
 // Steering-behavior weights (Reynolds): blended into a desired direction.
 const POLICE_LEAD = 1.2; // s of interception lead, capped
 const POLICE_PURSUE_W = 1.0;
@@ -322,12 +325,25 @@ export class Vehicles {
     }
     const tvx = target.vx ?? 0;
     const tvz = target.vz ?? 0;
-    const dx = target.x - car.x;
-    const dz = target.z - car.z;
-    const gap = Math.hypot(dx, dz) || 1e-3;
+    let dx = target.x - car.x;
+    let dz = target.z - car.z;
+    let gap = Math.hypot(dx, dz) || 1e-3;
+
+    // A cop that's been left hopelessly far behind (you outran it) is re-summoned
+    // near you, so the chase keeps pressure instead of trailing uselessly.
+    if (gap > POLICE_LEASH) {
+      this.placeNear(car, target, city);
+      dx = target.x - car.x;
+      dz = target.z - car.z;
+      gap = Math.hypot(dx, dz) || 1e-3;
+    }
+
+    // Chase speed rubber-bands with the gap so a fast quarry can't just leave
+    // them standing; capped under the player's top speed.
+    const chaseSpeed = pursuitSpeed(gap, POLICE_SPEED, POLICE_MAX_SPEED, POLICE_RUBBERBAND);
 
     // Pursuit: aim where the player will be, not where they are.
-    const lead = leadTime(gap, POLICE_SPEED, Math.hypot(tvx, tvz), POLICE_LEAD);
+    const lead = leadTime(gap, chaseSpeed, Math.hypot(tvx, tvz), POLICE_LEAD);
     let dirX = target.x + tvx * lead - car.x;
     let dirZ = target.z + tvz * lead - car.z;
     const pl = Math.hypot(dirX, dirZ) || 1e-3;
@@ -354,12 +370,14 @@ export class Vehicles {
     }
 
     // Obstacle avoidance: probe ahead; if it would clip a building, steer along
-    // the push-out normal (reuses the circle/AABB resolver).
+    // the push-out normal (reuses the circle/AABB resolver). The look-ahead
+    // grows with speed so fast chases don't grind walls.
     const sp = Math.hypot(car.vx, car.vz);
     const hx = sp > 0.5 ? car.vx / sp : dx / gap;
     const hz = sp > 0.5 ? car.vz / sp : dz / gap;
-    const fx = car.x + hx * POLICE_FEELER;
-    const fz = car.z + hz * POLICE_FEELER;
+    const feeler = POLICE_FEELER + sp * 0.25;
+    const fx = car.x + hx * feeler;
+    const fz = car.z + hz * feeler;
     const probe = city.grid.resolve(fx, fz, CAR_RADIUS);
     const nx = probe.x - fx;
     const nz = probe.z - fz;
@@ -370,11 +388,21 @@ export class Vehicles {
     }
 
     const cl = Math.hypot(dirX, dirZ) || 1e-3;
-    car.vx = damp(car.vx, (dirX / cl) * POLICE_SPEED, POLICE_ACCEL, dt);
-    car.vz = damp(car.vz, (dirZ / cl) * POLICE_SPEED, POLICE_ACCEL, dt);
+    car.vx = damp(car.vx, (dirX / cl) * chaseSpeed, POLICE_ACCEL, dt);
+    car.vz = damp(car.vz, (dirZ / cl) * chaseSpeed, POLICE_ACCEL, dt);
     car.x += car.vx * dt;
     car.z += car.vz * dt;
     if (Math.hypot(car.vx, car.vz) > 0.5) car.heading = Math.atan2(-car.vz, car.vx);
+  }
+
+  /** Drop a cruiser at the spawn radius around the target, in a random direction. */
+  private placeNear(car: Car, target: { x: number; z: number }, city: City): void {
+    const ang = Math.random() * Math.PI * 2;
+    const b = city.half - 4;
+    car.x = car.px = Math.max(-b, Math.min(b, target.x + Math.cos(ang) * POLICE_SPAWN_DIST));
+    car.z = car.pz = Math.max(-b, Math.min(b, target.z + Math.sin(ang) * POLICE_SPAWN_DIST));
+    car.vx = car.vz = 0;
+    car.heading = car.ph = 0;
   }
 
   /** Keep exactly `stars` police active, spawning newcomers near the target. */
@@ -384,12 +412,7 @@ export class Vehicles {
       if (car.role !== 'police') continue;
       const shouldBeActive = active < stars;
       if (shouldBeActive && !car.active) {
-        const ang = Math.random() * Math.PI * 2;
-        const b = city.half - 4;
-        car.x = car.px = Math.max(-b, Math.min(b, target.x + Math.cos(ang) * POLICE_SPAWN_DIST));
-        car.z = car.pz = Math.max(-b, Math.min(b, target.z + Math.sin(ang) * POLICE_SPAWN_DIST));
-        car.vx = car.vz = 0;
-        car.heading = car.ph = 0;
+        this.placeNear(car, target, city);
         car.active = true;
         car.group.visible = true;
       } else if (!shouldBeActive && car.active) {

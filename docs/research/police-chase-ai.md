@@ -6,8 +6,10 @@ single-file, bunching up, and sticking to buildings?
 
 ## TL;DR
 Use Reynolds steering behaviors blended into a desired direction. Shipped:
-pursuit/interception, separation, obstacle avoidance. Not yet built: flanking
-slots, line-of-sight cooldown, busted state, escalation table, roadblocks/PIT.
+pursuit/interception, separation, obstacle avoidance, busted state, **rubber-band
+chase speed + re-leash** (so a player who outruns cops can't just leave them
+crawling). Not yet built: flanking slots, line-of-sight cooldown, escalation
+table, roadblocks/PIT.
 
 ## Findings (prioritized punch-list)
 Accumulate weighted behaviors → clamp → integrate (the standard loop).
@@ -19,8 +21,9 @@ Accumulate weighted behaviors → clamp → integrate (the standard loop).
 2. **Separation** ✅ — push away from nearby cops, weight `1/d²`, normalize.
    Radius ≈ 2.5–3 car lengths; weight > pursuit so they fan out in a scrum.
 3. **Obstacle avoidance** ✅ — probe a point ahead along velocity; if it would
-   clip a building, steer along the push-out normal (we reuse `resolveCircle`).
-   Avoidance weight highest so they don't grind walls. (Full Reynolds uses 3 ray
+   clip a building, steer along the push-out normal (we reuse `city.grid.resolve`).
+   Avoidance weight highest so they don't grind walls; the look-ahead now grows
+   with speed so high-speed chases don't clip corners. (Full Reynolds uses 3 ray
    whiskers; our single look-ahead probe is the cheap version.)
 4. **Flanking/surround** 🔬 — assign each cop an angle *slot* around the player
    in the player's velocity frame; pursue the slot, not the player. Forward slots
@@ -36,6 +39,14 @@ Accumulate weighted behaviors → clamp → integrate (the standard loop).
    table of scalar knobs (count, speed, sight, flank/PIT toggles). Cheapest
    high-value escalation: roadblocks (just spawned cars using existing collision).
    Keep per-star differences as data, not scattered `if wanted >= n`.
+8. **Rubber-band + re-leash** ✅ (= ROADMAP R014) — the player tops out far above
+   any sane cop cruise speed, so a fixed cop speed means an opened gap never
+   closes. Fix: chase speed `pursuitSpeed(gap, base, max, gain)` ramps with the
+   gap (capped just under player top speed — escapable but pressured), and a cop
+   beyond a leash distance is teleported back to the spawn radius (`placeNear`),
+   reading as a fresh interceptor instead of a useless straggler. Both behaviors
+   are e2e-tested. Cleaner long-term home: fold `base`/`max` into per-car profiles
+   (R003) so an "interceptor" profile is just faster.
 
 ## Sources
 Reynolds *Steering Behaviors* (red3d.com/cwr/steer), Nature of Code ch.5
