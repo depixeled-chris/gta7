@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+.vite/
+# smoke-test output (the committed hero shot lives in docs/)
+/smoke.png

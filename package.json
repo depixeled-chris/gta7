@@ -1,0 +1,27 @@
+{
+  "name": "gta7",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A browser-based, GTA-style 3D open-world driving slice. Built in TypeScript + Three.js. (Yes, the name is a joke.)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "npm run build && node scripts/smoke.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.160.0",
+    "playwright": "^1.60.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.0",
+    "vitest": "^1.6.0"
+  }
+}
