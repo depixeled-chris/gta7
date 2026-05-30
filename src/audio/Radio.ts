@@ -73,10 +73,14 @@ export class Radio {
     this.playCurrent(true);
   }
 
-  /** Per-frame: full volume in the car, distance-faded on foot, muted far away. */
+  /**
+   * Per-frame: full volume in the car; on foot it ducks immediately (a clear
+   * "you stepped out" change, since a cross-origin stream can't be EQ'd) and
+   * then fades with distance, muted out of earshot.
+   */
   updateProximity(inCar: boolean, distance: number): void {
     if (this.loadedCarId === null) return;
-    const v = inCar ? 1 : Math.max(0, 1 - distance / HEAR_RADIUS);
+    const v = inCar ? 1 : Math.max(0, 1 - distance / HEAR_RADIUS) * 0.5;
     this.audio.volume = v;
     if (v <= 0.001) {
       if (!this.audio.paused) this.audio.pause();

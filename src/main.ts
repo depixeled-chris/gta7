@@ -25,6 +25,9 @@ function isTouchDevice(): boolean {
 
 const FOOT_RADIUS = 0.4;
 const ENTER_DISTANCE = 6; // generous so curbside parked cars are easy to get into
+const ENGINE_HEAR = 28; // on foot, how far a parked car's idle is audible
+const STEP_DISTANCE = 1.7; // metres of travel between footstep sounds
+let footAccum = 0;
 
 const container = document.getElementById('app')!;
 const touch = isTouchDevice();
@@ -278,6 +281,17 @@ function update(dt: number): void {
     vehicles.update(city, dt, null, { x: player.x, z: player.z }, chase);
     updateFoot(dt);
     checkPedestrianDamage();
+
+    // Footsteps cadence with travel distance (faster when sprinting).
+    if (player.speed > 0.1) {
+      footAccum += player.speed * dt;
+      if (footAccum >= STEP_DISTANCE) {
+        footAccum = 0;
+        sfx.footstep();
+      }
+    } else {
+      footAccum = STEP_DISTANCE; // first move triggers a step promptly
+    }
   }
 
   if (radio) {
@@ -353,15 +367,20 @@ function render(alpha: number, frameDt: number): void {
   hud.setWanted(stars);
 
   const driving = mode === 'driving';
-  sfx.setEngine(driving, Math.abs(vehicles.playerForwardSpeed()) / DEFAULT_VEHICLE.maxSpeed);
-  sfx.setScreech(driving ? Math.max(0, (vehicles.playerLateralSpeed() - 2) / 8) : 0);
-
-  if (radio && radioCarIndex !== null) {
-    if (driving) radio.updateProximity(true, 0);
-    else {
-      const cp = vehicles.carPosition(radioCarIndex);
-      radio.updateProximity(false, Math.hypot(player.x - cp.x, player.z - cp.z));
-    }
+  if (driving) {
+    sfx.setEngine(Math.abs(vehicles.playerForwardSpeed()) / DEFAULT_VEHICLE.maxSpeed, 1);
+    sfx.setScreech(Math.max(0, (vehicles.playerLateralSpeed() - 2) / 8));
+    if (radio) radio.updateProximity(true, 0);
+  } else {
+    sfx.setScreech(0);
+    // The car you left keeps idling and playing; both fade as you walk off.
+    const dist =
+      radioCarIndex !== null
+        ? Math.hypot(player.x - vehicles.carPosition(radioCarIndex).x, player.z - vehicles.carPosition(radioCarIndex).z)
+        : Infinity;
+    const near = Math.max(0, 1 - dist / ENGINE_HEAR);
+    sfx.setEngine(0, near * 0.6); // idle, quieter than under throttle
+    if (radio) radio.updateProximity(false, dist);
   }
 
   env.render();

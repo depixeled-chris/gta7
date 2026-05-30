@@ -49,6 +49,7 @@ Full write-ups in [`docs/research/`](docs/research/).
 ## ⏸ Deferred / declined
 - [R009] ⏸ Rust → WASM — premature. Revisit when >300–500 colliding bodies on a TS grid, or runtime chunk-gen hitches (>4–6 ms); try a Web Worker before WASM.
 - ⏸ Sex-worker mechanic (community) — declined (sexualized NPCs); offered a tame health-pickup alternative.
+- [R013] ⏸ True radio EQ/highpass when on foot — not feasible: the music streams cross-origin from the release CDN, which sends no CORS header, so Web Audio can't filter it without muting. Shipped a volume duck instead (R012). Would need the audio hosted same-origin/CORS-enabled.
 
 ---
 
@@ -57,5 +58,7 @@ Driving + on-foot · procedural night city · chase camera · traffic & pedestri
 mobile/touch controls · streetlights · parked cars · headlights · powerslides · health + WASTED ·
 traffic brakes for you · run-overs (shove vs gib) · wanted level + smart police (interception/separation/
 avoidance) · pedestrians flee on foot · car radio (per-car station, mid-broadcast, distance-fade) ·
-synthesized SFX (gearbox engine, screech, gib, blips) · ~200 mph + MPH readout · render interpolation.
+synthesized SFX (gearbox engine, screech, gib, blips) · ~200 mph + MPH readout · render interpolation ·
+[R010] engine idles audibly at a parked car & fades as you walk off · [R011] footsteps on foot ·
+[R012] radio ducks when you step out (+ distance fade).
 Requester credits: [README](README.md#requested-by-the-internet).

@@ -75,15 +75,20 @@ export class Sfx {
   }
 
   /**
-   * Continuous engine note: on only while driving. Pitch follows a faked
-   * automatic gearbox (rises through a gear, drops on the upshift). The short
-   * smoothing time makes each shift read as a quick blip rather than a step.
+   * Continuous engine note. Pitch follows a faked automatic gearbox (rises
+   * through a gear, drops on the upshift). `volume` (0–1) lets it idle quietly
+   * at a parked car and fade with distance as you walk away; pass 0 to silence.
    */
-  setEngine(on: boolean, speed01: number): void {
+  setEngine(speed01: number, volume: number): void {
     if (!this.ctx || !this.engineGain || !this.engineOsc) return;
     const t = this.ctx.currentTime;
-    this.engineGain.gain.setTargetAtTime(on ? 0.05 : 0, t, 0.1);
+    this.engineGain.gain.setTargetAtTime(Math.max(0, Math.min(1, volume)) * 0.06, t, 0.1);
     this.engineOsc.frequency.setTargetAtTime(engineToneHz(speed01), t, 0.05);
+  }
+
+  /** A soft, dull footstep tap. */
+  footstep(): void {
+    this.burst(0.06, 300, 0.13);
   }
 
   /** Tyre screech level (0–1) — driven by lateral slip / hard braking. */
