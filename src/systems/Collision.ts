@@ -64,3 +64,42 @@ export function resolveCircle(
   }
   return { x, z };
 }
+
+/** Unit push-out separating two overlapping circles, or null if they don't touch. */
+export function circleOverlap(
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  rSum: number,
+): { nx: number; nz: number; depth: number } | null {
+  const dx = ax - bx;
+  const dz = az - bz;
+  const distSq = dx * dx + dz * dz;
+  if (distSq >= rSum * rSum) return null;
+  // Degenerate exact overlap: pick an arbitrary but stable axis.
+  if (distSq < 1e-9) return { nx: 1, nz: 0, depth: rSum };
+  const dist = Math.sqrt(distSq);
+  return { nx: dx / dist, nz: dz / dist, depth: rSum - dist };
+}
+
+/** Index of the nearest point within `maxDist`, or -1. */
+export function nearestIndex(
+  x: number,
+  z: number,
+  points: ReadonlyArray<Vec2>,
+  maxDist: number,
+): number {
+  let best = -1;
+  let bestSq = maxDist * maxDist;
+  for (let i = 0; i < points.length; i++) {
+    const dx = points[i].x - x;
+    const dz = points[i].z - z;
+    const d = dx * dx + dz * dz;
+    if (d <= bestSq) {
+      bestSq = d;
+      best = i;
+    }
+  }
+  return best;
+}

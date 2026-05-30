@@ -14,7 +14,8 @@ npm run dev                 # Vite dev server (hot reload) — play at the print
 npm run build               # tsc --noEmit (typecheck) THEN vite build -> dist/
 npm test                    # Vitest: pure-logic unit tests (node env)
 npm run test:watch          # Vitest in watch mode
-npm run smoke               # build + headless-Chromium runtime check (see below)
+npm run smoke               # build + headless-Chromium render check (see below)
+npm run test:e2e            # build + render check + gameplay interaction test
 npm run preview             # serve the built dist/
 ```
 
@@ -25,7 +26,7 @@ npx vitest run src/vehicles/VehicleModel.test.ts
 npx vitest run -t "caps speed at maxSpeed"
 ```
 
-The smoke test (`scripts/smoke.mjs`) requires Chromium once: `npx playwright install chromium`. It self-hosts the built app, loads it in headless Chromium, fails on any console/page error, and decodes a screenshot to assert the scene actually rasterized (color diversity + lit-pixel fraction) rather than rendering a blank canvas.
+The browser tests (`scripts/smoke.mjs`, `scripts/interaction.mjs`) require Chromium once: `npx playwright install chromium`. Both self-host the built app. `smoke` fails on any console/page error and decodes a screenshot to assert the scene actually rasterized (color diversity + lit-pixel fraction) rather than rendering a blank canvas. `interaction` drives the real game to assert gameplay: building collision blocks the car, you can enter any nearby car, and ramming shoves traffic. Both use the `window.__game` debug handle (mode, `vehicles`, `player`, `city`) exposed from `main.ts` — keep it in sync if you add state worth testing.
 
 ## Architecture
 
@@ -34,20 +35,21 @@ The codebase is split along one hard line: **the simulation core is pure and Thr
 **Pure core (no `three`, unit-tested):**
 - `src/core/` — `math` (clamp/lerp/frame-rate-independent `damp`/`angleDelta`), `rng` (seeded mulberry32), `Input` (keyboard with edge detection), `GameLoop` (fixed-timestep accumulator).
 - `src/world/City.ts` — deterministic procedural city generation from a seed: buildings, AABB colliders, traffic lanes, spawn point.
-- `src/vehicles/VehicleModel.ts` — pure arcade vehicle dynamics (`stepVehicle` is a pure function: state + input → state).
-- `src/systems/Collision.ts` — circle-vs-AABB push-out resolution.
+- `src/vehicles/VehicleModel.ts` — pure arcade vehicle dynamics. `stepVehicle` is a pure function (state + input → state) over a world **velocity vector**; it decomposes velocity into forward/lateral each step and bleeds the lateral part off by tyre grip. The handbrake slashes that grip, which is what produces powerslides.
+- `src/systems/Collision.ts` — circle-vs-AABB push-out, circle-vs-circle overlap (for car-on-car), and nearest-point search.
 
 **Render/runtime layer (imports `three`, browser-only):**
 - `src/render/` — `Scene` (renderer, dusk lighting, ground/roads, fog), `Assets` (building/car/ped mesh factories + material cache), `textures` (procedural canvas facade texture).
-- `src/systems/` — `FollowCamera` (smoothed chase cam), `Traffic` and `Pedestrians` (ambient actors).
+- `src/systems/` — `FollowCamera` (smoothed chase cam), `Vehicles` (ALL cars — player, AI traffic, parked — with one shared physics + collision pass), `Pedestrians` (ambient walkers).
 - `src/entities/Player.ts` — on-foot avatar controller.
 - `src/ui/HUD.ts` — DOM overlay: speedometer, mode, controls, live minimap.
 - `src/main.ts` — the orchestrator: builds the world, owns the driving↔on-foot state machine, runs the loop, applies collision, drives the camera.
 
 ### Conventions and invariants (read before editing sim code)
 
-- **Coordinate frame (single source of truth):** world X = east, Z = south, Y = up. Heading `0` points along +X and increases counter-clockwise (toward −Z). Forward vector is always `(cos h, 0, −sin h)`. `VehicleModel`, `Traffic`, `Player`, and `FollowCamera` all assume this — keep new systems consistent with it.
-- **Determinism:** `City`, `Traffic`, and `Pedestrians` are seeded via `createRng`. Same seed → same world. The `City` tests depend on this; don't introduce `Math.random()` into world generation.
+- **Coordinate frame (single source of truth):** world X = east, Z = south, Y = up. Heading `0` points along +X and increases counter-clockwise (toward −Z). Forward = `(cos h, 0, −sin h)`, right = `(sin h, 0, cos h)`. `VehicleModel`, `Vehicles`, `Player`, and `FollowCamera` all assume this — keep new systems consistent with it. A car mesh's `rotation.y` equals its heading directly.
+- **One physics model for all cars:** the player's car, AI traffic, and parked/abandoned cars are the same `Car` struct in `Vehicles`. Only the player car is integrated by `stepVehicle`; AI cars follow lanes (with knock-and-recover), parked cars coast to rest. A single pass then resolves every car against buildings and against each other (momentum exchange). Don't add a separate code path for "the player car" — extend the shared one.
+- **Determinism:** `City`, `Vehicles`, and `Pedestrians` are seeded via `createRng`. Same seed → same world. The `City` tests depend on this; don't introduce `Math.random()` into world generation.
 - **Fixed timestep:** `GameLoop` calls `update(dt)` at a constant 60 Hz and `render()` once per frame. Put simulation in `update`, presentation in `render`.
 - **Collision model:** every moving actor is a ground-plane circle; the world is `city.colliders` (axis-aligned building footprints). Resolve with `resolveCircle`.
 - **Building UVs (`Assets.scaleFacadeUvs`)** rely on Three's `BoxGeometry` face/group order: +X, −X, +Y, −Y, +Z, −Z. The roof/floor faces are intentionally collapsed to a dark texel.

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { resolveCircleAabb, resolveCircle, type Aabb } from './Collision';
+import {
+  resolveCircleAabb,
+  resolveCircle,
+  circleOverlap,
+  nearestIndex,
+  type Aabb,
+} from './Collision';
 
 const box: Aabb = { minX: -5, minZ: -5, maxX: 5, maxZ: 5 };
 
@@ -41,5 +47,35 @@ describe('resolveCircle', () => {
     // Wedged in the 1-unit gap between two boxes -> ends up clear of both.
     expect(r.x).toBeGreaterThanOrEqual(4);
     expect(r.x).toBeLessThanOrEqual(7);
+  });
+});
+
+describe('circleOverlap', () => {
+  it('returns null when circles do not touch', () => {
+    expect(circleOverlap(0, 0, 10, 0, 4)).toBeNull();
+  });
+
+  it('reports a normalized axis and penetration depth', () => {
+    const o = circleOverlap(0, 0, 3, 0, 4)!; // 3 apart, radii sum 4 -> depth 1
+    expect(o).not.toBeNull();
+    expect(o.nx).toBeCloseTo(-1); // points from B toward A (A is left of B)
+    expect(o.nz).toBeCloseTo(0);
+    expect(o.depth).toBeCloseTo(1);
+  });
+
+  it('stays stable on exact overlap', () => {
+    const o = circleOverlap(5, 5, 5, 5, 2)!;
+    expect(Math.hypot(o.nx, o.nz)).toBeCloseTo(1);
+    expect(o.depth).toBeCloseTo(2);
+  });
+});
+
+describe('nearestIndex', () => {
+  const pts = [{ x: 10, z: 0 }, { x: 2, z: 0 }, { x: 0, z: 3 }];
+  it('finds the closest point within range', () => {
+    expect(nearestIndex(0, 0, pts, 5)).toBe(1); // (2,0) is closest
+  });
+  it('returns -1 when nothing is in range', () => {
+    expect(nearestIndex(0, 0, pts, 1)).toBe(-1);
   });
 });

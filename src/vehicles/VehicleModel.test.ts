@@ -2,12 +2,15 @@ import { describe, it, expect } from 'vitest';
 import {
   stepVehicle,
   DEFAULT_VEHICLE,
+  speedOf,
+  forwardSpeedOf,
+  lateralSpeedOf,
   toKmh,
   type VehicleState,
   type VehicleInput,
 } from './VehicleModel';
 
-const rest = (): VehicleState => ({ x: 0, z: 0, heading: 0, speed: 0 });
+const rest = (): VehicleState => ({ x: 0, z: 0, heading: 0, vx: 0, vz: 0 });
 const idle: VehicleInput = { throttle: 0, steer: 0, handbrake: false };
 const dt = 1 / 60;
 
@@ -21,25 +24,26 @@ const drive = (s: VehicleState, input: Partial<VehicleInput>, steps: number): Ve
 describe('stepVehicle', () => {
   it('accelerates forward under throttle', () => {
     const s = drive(rest(), { throttle: 1 }, 60);
-    expect(s.speed).toBeGreaterThan(5);
+    expect(forwardSpeedOf(s)).toBeGreaterThan(5);
     expect(s.x).toBeGreaterThan(0); // moved toward +X at heading 0
   });
 
   it('coasts to a stop when idle', () => {
     const moving = drive(rest(), { throttle: 1 }, 120);
-    const stopped = drive(moving, {}, 600);
-    expect(stopped.speed).toBeCloseTo(0, 2);
+    const stopped = drive(moving, {}, 1200);
+    expect(speedOf(stopped)).toBeCloseTo(0, 2);
   });
 
-  it('caps speed at maxSpeed', () => {
+  it('caps forward speed at maxSpeed', () => {
     const s = drive(rest(), { throttle: 1 }, 6000);
-    expect(s.speed).toBeLessThanOrEqual(DEFAULT_VEHICLE.maxSpeed + 1e-6);
+    expect(forwardSpeedOf(s)).toBeLessThanOrEqual(DEFAULT_VEHICLE.maxSpeed + 1e-3);
+    expect(forwardSpeedOf(s)).toBeGreaterThan(DEFAULT_VEHICLE.maxSpeed * 0.9);
   });
 
   it('reverses but only up to reverseMaxSpeed', () => {
     const s = drive(rest(), { throttle: -1 }, 6000);
-    expect(s.speed).toBeLessThan(0);
-    expect(s.speed).toBeGreaterThanOrEqual(-DEFAULT_VEHICLE.reverseMaxSpeed - 1e-6);
+    expect(forwardSpeedOf(s)).toBeLessThan(0);
+    expect(forwardSpeedOf(s)).toBeGreaterThanOrEqual(-DEFAULT_VEHICLE.reverseMaxSpeed - 1e-3);
   });
 
   it('does not steer while parked', () => {
@@ -59,7 +63,27 @@ describe('stepVehicle', () => {
     const moving = drive(rest(), { throttle: 1 }, 120);
     const braked = drive(moving, { throttle: -1 }, 10);
     const coasted = drive(moving, {}, 10);
-    expect(braked.speed).toBeLessThan(coasted.speed);
+    expect(forwardSpeedOf(braked)).toBeLessThan(forwardSpeedOf(coasted));
+  });
+
+  it('powerslides: the handbrake preserves lateral slip that grip would kill', () => {
+    const fast = drive(rest(), { throttle: 1 }, 180);
+
+    const gripTurn = drive(fast, { throttle: 1, steer: 1 }, 25);
+    const slideTurn = drive(fast, { throttle: 1, steer: 1, handbrake: true }, 25);
+
+    // With the handbrake the car slips sideways far more than with tyres planted.
+    expect(Math.abs(lateralSpeedOf(slideTurn))).toBeGreaterThan(
+      Math.abs(lateralSpeedOf(gripTurn)) * 2,
+    );
+    expect(Math.abs(lateralSpeedOf(slideTurn))).toBeGreaterThan(5);
+  });
+
+  it('grip realigns velocity to the heading after a turn', () => {
+    const fast = drive(rest(), { throttle: 1 }, 180);
+    const turned = drive(fast, { throttle: 1, steer: 1 }, 40);
+    // Planted tyres keep slip small relative to forward motion.
+    expect(Math.abs(lateralSpeedOf(turned))).toBeLessThan(Math.abs(forwardSpeedOf(turned)) * 0.5);
   });
 
   it('is deterministic', () => {

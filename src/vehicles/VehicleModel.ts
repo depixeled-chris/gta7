@@ -1,18 +1,23 @@
 import { clamp } from '../core/math';
 
 /**
- * Arcade vehicle dynamics. Deliberately NOT a rigid-body sim: a tuned
- * kinematic model gives predictable, fun GTA-style handling and stays pure
- * (no Three.js, no globals) so it can be unit-tested deterministically.
+ * Arcade vehicle dynamics with a real velocity vector and tyre grip — NOT a
+ * rigid-body sim, but enough to powerslide. Velocity is tracked in world space
+ * and decomposed each step into forward/lateral components relative to the
+ * car's heading. Lateral grip bleeds off sideways velocity; the handbrake
+ * slashes that grip, so the car keeps its momentum while the nose swings round
+ * — i.e. it drifts. Pure and deterministic (no Three.js, no globals).
  *
  * Coordinate convention matches the renderer: world X = east, Z = south,
- * heading 0 points toward +X and increases counter-clockwise (toward -Z).
+ * heading 0 points toward +X and increases counter-clockwise (toward -Z), so
+ * forward = (cos h, -sin h) and right = (sin h, cos h).
  */
 export interface VehicleState {
   x: number;
   z: number;
   heading: number; // radians
-  speed: number; // m/s along heading (negative = reverse)
+  vx: number; // world velocity
+  vz: number;
 }
 
 export interface VehicleInput {
@@ -26,23 +31,29 @@ export interface VehicleConfig {
   brakePower: number; // m/s^2 when reversing throttle against motion
   reverseMaxSpeed: number;
   maxSpeed: number;
-  drag: number; // passive deceleration per second (fraction of speed)
+  drag: number; // proportional air drag per second
   rollingResistance: number; // constant deceleration (m/s^2)
-  turnRate: number; // rad/s at the steering reference speed
+  turnRate: number; // rad/s at full steering authority
   gripSpeed: number; // speed (m/s) at which steering reaches full authority
-  handbrakeDrag: number;
+  gripNormal: number; // lateral grip (1/s) with tyres planted
+  gripHandbrake: number; // lateral grip with the handbrake locked (low = slide)
+  handbrakeDrag: number; // extra deceleration while the handbrake is held
+  handbrakeSteer: number; // steering multiplier while sliding (flickability)
 }
 
 export const DEFAULT_VEHICLE: VehicleConfig = {
-  enginePower: 14,
-  brakePower: 26,
-  reverseMaxSpeed: 9,
-  maxSpeed: 42,
-  drag: 0.6,
-  rollingResistance: 4,
-  turnRate: 2.4,
-  gripSpeed: 12,
-  handbrakeDrag: 14,
+  enginePower: 19,
+  brakePower: 34,
+  reverseMaxSpeed: 13,
+  maxSpeed: 64, // ~230 km/h
+  drag: 0.22,
+  rollingResistance: 5,
+  turnRate: 2.7,
+  gripSpeed: 9,
+  gripNormal: 10,
+  gripHandbrake: 0.7,
+  handbrakeDrag: 4,
+  handbrakeSteer: 1.4,
 };
 
 const EPS = 1e-4;
@@ -56,40 +67,70 @@ export function stepVehicle(
   const throttle = clamp(input.throttle, -1, 1);
   const steer = clamp(input.steer, -1, 1);
 
-  let speed = state.speed;
-  const movingForward = speed > EPS;
-  const movingBackward = speed < -EPS;
+  let { vx, vz } = state;
+  const cosH = Math.cos(state.heading);
+  const sinH = Math.sin(state.heading);
+  const fx = cosH; // forward
+  const fz = -sinH;
 
-  // Throttle that opposes current motion acts as braking; otherwise it drives.
+  // Engine / brake force along the current forward axis.
+  const vForward = vx * fx + vz * fz;
   if (throttle !== 0) {
     const opposing =
-      (movingForward && throttle < 0) || (movingBackward && throttle > 0);
+      (vForward > EPS && throttle < 0) || (vForward < -EPS && throttle > 0);
     const accel = opposing ? cfg.brakePower : cfg.enginePower;
-    speed += throttle * accel * dt;
+    vx += fx * throttle * accel * dt;
+    vz += fz * throttle * accel * dt;
   }
 
-  // Passive losses: proportional drag + constant rolling resistance.
-  speed -= speed * cfg.drag * dt;
-  if (input.handbrake) speed -= speed * cfg.handbrakeDrag * dt;
-  const roll = cfg.rollingResistance * dt;
-  if (speed > 0) speed = Math.max(0, speed - roll);
-  else if (speed < 0) speed = Math.min(0, speed + roll);
+  // Rolling resistance + handbrake drag oppose the velocity vector directly.
+  const speed = Math.hypot(vx, vz);
+  if (speed > 1e-5) {
+    const decel = (cfg.rollingResistance + (input.handbrake ? cfg.handbrakeDrag : 0)) * dt;
+    const factor = Math.max(0, 1 - decel / speed);
+    vx *= factor;
+    vz *= factor;
+  }
+  vx -= vx * cfg.drag * dt;
+  vz -= vz * cfg.drag * dt;
 
-  speed = clamp(speed, -cfg.reverseMaxSpeed, cfg.maxSpeed);
+  // Steering rotates the heading; authority ramps with speed and flips in
+  // reverse. The handbrake makes it flickier.
+  const authority = clamp(Math.hypot(vx, vz) / cfg.gripSpeed, 0, 1);
+  const dir = vx * fx + vz * fz >= 0 ? 1 : -1;
+  const steerMul = input.handbrake ? cfg.handbrakeSteer : 1;
+  const heading = state.heading + steer * cfg.turnRate * authority * dir * steerMul * dt;
 
-  // Steering authority scales with speed (you can't turn while parked) and
-  // the turn flips sign in reverse, like a real car backing up.
-  const authority = clamp(Math.abs(speed) / cfg.gripSpeed, 0, 1);
-  const direction = speed >= 0 ? 1 : -1;
-  const heading = state.heading + steer * cfg.turnRate * authority * direction * dt;
+  // Re-decompose velocity against the NEW heading and bleed off the lateral
+  // component by the active grip. High grip realigns velocity to the nose
+  // (crisp turn); low grip (handbrake) preserves the slide.
+  const nfx = Math.cos(heading);
+  const nfz = -Math.sin(heading);
+  const nrx = Math.sin(heading); // right
+  const nrz = Math.cos(heading);
+  let forward = vx * nfx + vz * nfz;
+  let lateral = vx * nrx + vz * nrz;
 
-  return {
-    x: state.x + Math.cos(heading) * speed * dt,
-    z: state.z - Math.sin(heading) * speed * dt,
-    heading,
-    speed,
-  };
+  const grip = input.handbrake ? cfg.gripHandbrake : cfg.gripNormal;
+  lateral *= Math.exp(-grip * dt);
+  forward = clamp(forward, -cfg.reverseMaxSpeed, cfg.maxSpeed);
+
+  vx = nfx * forward + nrx * lateral;
+  vz = nfz * forward + nrz * lateral;
+
+  return { x: state.x + vx * dt, z: state.z + vz * dt, heading, vx, vz };
 }
 
-/** Speed in km/h for the HUD. */
+/** Total speed magnitude (m/s). */
+export const speedOf = (s: VehicleState): number => Math.hypot(s.vx, s.vz);
+
+/** Signed speed along the heading (negative = reversing). */
+export const forwardSpeedOf = (s: VehicleState): number =>
+  s.vx * Math.cos(s.heading) - s.vz * Math.sin(s.heading);
+
+/** Sideways slip speed — magnitude is how hard the car is drifting. */
+export const lateralSpeedOf = (s: VehicleState): number =>
+  s.vx * Math.sin(s.heading) + s.vz * Math.cos(s.heading);
+
+/** Speed magnitude in km/h for the HUD. */
 export const toKmh = (speed: number): number => Math.abs(speed) * 3.6;
