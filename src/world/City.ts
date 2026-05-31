@@ -198,6 +198,16 @@ export function generateCity(config: CityConfig = DEFAULT_CITY): City {
   };
 }
 
+/** Nudge a hex colour's brightness by ±`amt` (deterministic via rng). Pure int math (no THREE). */
+function jitterBrightness(hex: number, rng: ReturnType<typeof createRng>, amt: number): number {
+  const f = 1 + (rng.next() * 2 - 1) * amt;
+  const ch = (shift: number): number => {
+    const v = Math.round(((hex >> shift) & 0xff) * f);
+    return v < 0 ? 0 : v > 255 ? 255 : v;
+  };
+  return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+}
+
 export function addBlock(
   originX: number,
   originZ: number,
@@ -232,7 +242,10 @@ export function addBlock(
       const height = rng.range(hMin, hMax);
       const style = rng.pick(biome.facades);
 
-      buildings.push({ cx, cz, width, depth, height, color: rng.pick(biome.palette), style });
+      // Per-building brightness jitter on the biome tint, so a block of the same
+      // palette still reads as many distinct buildings rather than clones.
+      const color = jitterBrightness(rng.pick(biome.palette), rng, 0.18);
+      buildings.push({ cx, cz, width, depth, height, color, style });
 
       const hw = width / 2;
       const hd = depth / 2;
