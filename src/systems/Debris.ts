@@ -48,10 +48,12 @@ const SKIN = 0xd8b48a;
 const DARK = 0x2a2a2a;
 
 export class Debris {
-  private readonly world = new World();
   private readonly free: MeshRef[] = []; // pooled meshes not currently in use
 
-  constructor(scene: THREE.Scene) {
+  // Shares the one game World (entities co-exist with cars/peds); runs its
+  // passes directly rather than via the World scheduler, since the game's
+  // per-frame order is orchestrated explicitly in main.
+  constructor(scene: THREE.Scene, private readonly world: World) {
     const geo = new THREE.BoxGeometry(1, 1, 1);
     for (let i = 0; i < POOL; i++) {
       const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
@@ -61,8 +63,6 @@ export class Debris {
       scene.add(mesh);
       this.free.push({ mesh, mat });
     }
-    this.world.addSystem('update', (w, dt) => this.step(w, dt));
-    this.world.addSystem('render', (w, alpha) => this.draw(w, alpha));
   }
 
   /** Spew a batch of cubes from (x,z), carrying some of the car's momentum. */
@@ -120,11 +120,11 @@ export class Debris {
   }
 
   update(dt: number): void {
-    this.world.update(dt);
+    this.step(this.world, dt);
   }
 
   render(alpha: number): void {
-    this.world.render(alpha);
+    this.draw(this.world, alpha);
   }
 
   /** Update system: integrate motion, bounce, spin, and recycle dead pieces. */
@@ -173,6 +173,6 @@ export class Debris {
 
   /** Live piece count (debug/telemetry). */
   count(): number {
-    return this.world.entityCount();
+    return this.world.query(DebrisPiece).length;
   }
 }

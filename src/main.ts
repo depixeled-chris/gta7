@@ -6,6 +6,8 @@ import { Player } from './entities/Player';
 import { FollowCamera, CAR_CAM, FOOT_CAM } from './systems/FollowCamera';
 import { Vehicles } from './systems/Vehicles';
 import { Pedestrians } from './systems/Pedestrians';
+import { Debris } from './systems/Debris';
+import { World } from './ecs/World';
 import { HUD, type Mode } from './ui/HUD';
 import { Controls } from './core/Controls';
 import { GameLoop } from './core/GameLoop';
@@ -68,8 +70,12 @@ const headlights = [0, 1].map(() => {
   return { light, target };
 });
 
-const vehicles = new Vehicles(env.scene, city, touch ? 24 : 40);
-const peds = new Pedestrians(env.scene, city, touch ? 28 : 60);
+// One shared ECS World holds all dynamic entities (cars, pedestrians, debris),
+// and one shared Debris pool serves both car wrecks and pedestrian gibs.
+const world = new World();
+const debris = new Debris(env.scene, world);
+const vehicles = new Vehicles(env.scene, city, world, debris, touch ? 24 : 40);
+const peds = new Pedestrians(env.scene, city, world, debris, touch ? 28 : 60);
 const hud = new HUD(container, city, touch);
 
 let touchRoot: HTMLElement | undefined;
@@ -314,6 +320,7 @@ function update(dt: number): void {
     vehicles.update(city, dt, null, null);
     flushCarWrecks();
     peds.update(city, dt, runOverQuery, null);
+    debris.update(dt); // shared pool, advanced once per frame
     if ((wasted && wastedTimer <= 0) || (busted && bustedTimer <= 0)) respawn();
     controls.endFrame();
     return;
@@ -361,6 +368,7 @@ function update(dt: number): void {
   // Pedestrians fear the CAR only (not the player on foot): proximity, or a fast
   // car on a vector to hit them. Threat carries velocity for the vector trigger.
   peds.update(city, dt, runOverQuery, mode === 'driving' ? chaseTarget() : null);
+  debris.update(dt); // shared pool, advanced once per frame
   controls.endFrame();
 }
 
@@ -397,6 +405,7 @@ function render(alpha: number, frameDt: number): void {
   // step so motion stays smooth regardless of how steps line up with frames.
   vehicles.render(alpha);
   peds.render(alpha);
+  debris.render(alpha); // shared pool, drawn once per frame
 
   const ax = lerp(player.px, player.x, alpha);
   const az = lerp(player.pz, player.z, alpha);

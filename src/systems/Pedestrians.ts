@@ -69,10 +69,8 @@ const VECTOR_SPEED = 8; // ...and moving at least this fast (a car, not a stroll
  * objects (the component values), so the debug handle and e2e are unchanged.
  */
 export class Pedestrians {
-  private readonly world = new World();
   private readonly peds: Ped[] = [];
   private readonly rng: Rng;
-  private readonly debris: Debris;
   private tick = 0; // render-frame counter for the fear tremble
   runOverCount = 0;
 
@@ -81,9 +79,16 @@ export class Pedestrians {
   private curImpact?: ImpactQuery;
   private curThreat: Threat;
 
-  constructor(scene: THREE.Scene, private readonly city: City, count = 60, seed = 333) {
+  // Shares the one game World + the shared Debris pool; runs its passes directly.
+  constructor(
+    scene: THREE.Scene,
+    private readonly city: City,
+    private readonly world: World,
+    private readonly debris: Debris,
+    count = 60,
+    seed = 333,
+  ) {
     this.rng = createRng(seed);
-    this.debris = new Debris(scene);
     for (let i = 0; i < count; i++) {
       const color = this.rng.pick(SHIRTS);
       const group = makePed(color);
@@ -102,16 +107,13 @@ export class Pedestrians {
       this.peds.push(ped);
       this.world.add(this.world.create(), Pedestrian, ped);
     }
-    this.world.addSystem('update', (w, dt) => this.stepPeds(w, dt));
-    this.world.addSystem('render', (w, alpha) => this.drawPeds(w, alpha));
   }
 
   update(city: City, dt: number, impactAt?: ImpactQuery, threat?: Threat): void {
     this.curCity = city;
     this.curImpact = impactAt;
     this.curThreat = threat;
-    this.world.update(dt);
-    this.debris.update(dt);
+    this.stepPeds(this.world, dt);
   }
 
   /** Update system: advance every pedestrian (walk / flee / shoved / gibbed). */
@@ -271,8 +273,7 @@ export class Pedestrians {
   }
 
   render(alpha: number): void {
-    this.world.render(alpha);
-    this.debris.render(alpha);
+    this.drawPeds(this.world, alpha);
   }
 
   /** Render system: position meshes, interpolating between physics steps. */

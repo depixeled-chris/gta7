@@ -100,22 +100,26 @@ export class Vehicles {
   playerIndex: number | null = 0;
   private steer = 0;
   private flash = 0; // render-frame counter for the flashing police lights
-  private readonly debris: Debris;
   private readonly smoke: Smoke;
   private explosions = 0; // car wrecks since main last consumed them (for SFX)
   private playerWreckPending = false; // player car blew up → main triggers WASTED
   wreckCount = 0; // monotonic total wrecks (debug/telemetry)
 
-  // Cars are ECS entities; the per-car passes run as systems over query(Vehicle).
-  // (Collision and player-index logic stay array/index based — see simStep.)
-  private readonly world = new World();
+  // Cars are ECS entities in the shared game World; the per-car passes run over
+  // query(Vehicle). (Collision and player-index logic stay array/index based.)
   private curCity: City | null = null;
   private curInput: VehicleInput | null = null;
   private curPedestrian: { x: number; z: number } | null = null;
   private curChase: { x: number; z: number; vx?: number; vz?: number } | null = null;
 
-  constructor(scene: THREE.Scene, city: City, trafficCount = 40, seed = 909) {
-    this.debris = new Debris(scene);
+  constructor(
+    scene: THREE.Scene,
+    city: City,
+    private readonly world: World,
+    private readonly debris: Debris,
+    trafficCount = 40,
+    seed = 909,
+  ) {
     this.smoke = new Smoke(scene);
     const sedan = CAR_SHAPES[0];
     this.spawn(scene, makeCar(PLAYER_COLOR, sedan), PLAYER_COLOR, sedan.id, city.center.x, city.center.z, 0, 'parked', null, 0);
@@ -160,9 +164,6 @@ export class Vehicles {
       this.cars.push(car);
       this.world.add(this.world.create(), Vehicle, car);
     }
-
-    this.world.addSystem('update', (w, dt) => this.simStep(w, dt));
-    this.world.addSystem('render', (w, alpha) => this.renderCars(w, alpha));
   }
 
   private spawn(
@@ -200,7 +201,7 @@ export class Vehicles {
     this.curInput = input;
     this.curPedestrian = pedestrian;
     this.curChase = chaseTarget;
-    this.world.update(dt); // runs simStep (below)
+    this.simStep(this.world, dt);
 
     if (this.playerIndex !== null) {
       const c = this.cars[this.playerIndex];
@@ -255,13 +256,12 @@ export class Vehicles {
       this.smoke.emit(car.x, car.z, 1 - car.health / SMOKE_HEALTH, dt);
     }
     this.smoke.update(dt);
-    this.debris.update(dt);
+    // Debris is the shared pool, advanced once per frame by main.
   }
 
-  /** Per-frame presentation; the world's render stage interpolates the cars. */
+  /** Per-frame presentation; interpolates the car meshes between physics steps. */
   render(alpha: number): void {
-    this.debris.render(alpha);
-    this.world.render(alpha);
+    this.renderCars(this.world, alpha);
   }
 
   /** Render system: position each car mesh, interpolated between physics steps. */
