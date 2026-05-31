@@ -24,6 +24,7 @@ export interface CarProfile extends VehicleConfig {
   model: string;
   class: VehicleClass;
   shapeId: string; // a CAR_SHAPES id (the body silhouette)
+  mass: number; // kg — drives mass-weighted car-vs-car collision (heavy shoves light)
 }
 
 /** Spread the baseline sedan config, override the fields that give a model its feel. */
@@ -32,38 +33,38 @@ const tune = (over: Partial<VehicleConfig>): VehicleConfig => ({ ...DEFAULT_VEHI
 /** The seven civilian makes/models you'll find on the street. */
 export const PROFILES: CarProfile[] = [
   {
-    id: 'crown-vantage', manufacturer: 'Crown', model: 'Vantage', class: 'sedan', shapeId: 'sedan',
+    id: 'crown-vantage', manufacturer: 'Crown', model: 'Vantage', class: 'sedan', shapeId: 'sedan', mass: 1400,
     ...tune({}), // the balanced baseline
   },
   {
-    id: 'komuter-bean', manufacturer: 'Komuter', model: 'Bean', class: 'compact', shapeId: 'compact',
+    id: 'komuter-bean', manufacturer: 'Komuter', model: 'Bean', class: 'compact', shapeId: 'compact', mass: 1000,
     ...tune({ enginePower: 12, maxSpeed: 78, turnRate: 3.1, gripNormal: 11 }), // zippy, low top end
   },
   {
-    id: 'velocci-strada', manufacturer: 'Velocci', model: 'Strada', class: 'sports', shapeId: 'sports',
+    id: 'velocci-strada', manufacturer: 'Velocci', model: 'Strada', class: 'sports', shapeId: 'sports', mass: 1200,
     ...tune({ enginePower: 16, maxSpeed: 102, turnRate: 3.1, gripNormal: 12, gripSpeed: 11 }),
   },
   {
-    id: 'velocci-furia', manufacturer: 'Velocci', model: 'Furia', class: 'super', shapeId: 'sports',
+    id: 'velocci-furia', manufacturer: 'Velocci', model: 'Furia', class: 'super', shapeId: 'sports', mass: 1300,
     ...tune({ enginePower: 19, brakePower: 40, maxSpeed: 118, turnRate: 3.0, gripNormal: 12.5, gripSpeed: 12 }),
   },
   {
-    id: 'mosca-brute', manufacturer: 'Mosca', model: 'Brute', class: 'muscle', shapeId: 'sedan',
+    id: 'mosca-brute', manufacturer: 'Mosca', model: 'Brute', class: 'muscle', shapeId: 'sedan', mass: 1650,
     ...tune({ enginePower: 17, maxSpeed: 99, turnRate: 2.4, gripNormal: 8, gripHandbrake: 0.6 }), // power, loose tail
   },
   {
-    id: 'delivr-boxer', manufacturer: 'Delivr', model: 'Boxer', class: 'van', shapeId: 'van',
+    id: 'delivr-boxer', manufacturer: 'Delivr', model: 'Boxer', class: 'van', shapeId: 'van', mass: 2400,
     ...tune({ enginePower: 10, maxSpeed: 74, turnRate: 2.1, gripNormal: 8 }),
   },
   {
-    id: 'bunker-hauler', manufacturer: 'Bunker', model: 'Hauler', class: 'truck', shapeId: 'pickup',
+    id: 'bunker-hauler', manufacturer: 'Bunker', model: 'Hauler', class: 'truck', shapeId: 'pickup', mass: 4500,
     ...tune({ enginePower: 8, brakePower: 26, maxSpeed: 62, turnRate: 1.9, gripNormal: 7, gripSpeed: 12 }),
   },
 ];
 
 /** Police interceptor — fast and planted, what cruisers (and a carjacked cop car) drive. */
 export const INTERCEPTOR: CarProfile = {
-  id: 'crown-interceptor', manufacturer: 'Crown', model: 'Interceptor', class: 'interceptor', shapeId: 'sports',
+  id: 'crown-interceptor', manufacturer: 'Crown', model: 'Interceptor', class: 'interceptor', shapeId: 'sports', mass: 1700,
   ...tune({ enginePower: 15, maxSpeed: 94, turnRate: 2.9, gripNormal: 11 }),
 };
 

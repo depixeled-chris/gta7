@@ -3,11 +3,29 @@ import {
   resolveCircleAabb,
   resolveCircle,
   circleOverlap,
+  resolveCarImpulse,
   nearestIndex,
   type Aabb,
 } from './Collision';
 
 const box: Aabb = { minX: -5, minZ: -5, maxX: 5, maxZ: 5 };
+
+describe('resolveCarImpulse', () => {
+  it('equal masses reduce to the old per-car -(1+e)·vn/2 velocity change', () => {
+    const vn = -10;
+    const e = 0.4;
+    const m = 1400;
+    const imp = resolveCarImpulse(vn, m, m, e);
+    expect(imp / m).toBeCloseTo((-(1 + e) * vn) / 2, 9); // per-car Δv
+  });
+
+  it('the heavier car changes velocity less than the lighter one', () => {
+    const imp = resolveCarImpulse(-10, 4500, 1000, 0.4); // truck vs compact
+    const dvTruck = imp / 4500;
+    const dvCompact = imp / 1000;
+    expect(dvCompact).toBeGreaterThan(dvTruck * 3); // light car flung far harder
+  });
+});
 
 describe('resolveCircleAabb', () => {
   it('leaves a circle outside the box untouched', () => {

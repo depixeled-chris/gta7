@@ -3,7 +3,7 @@ import type { City, Lane } from '../world/City';
 import { createRng } from '../core/rng';
 import { damp, lerp, angleLerp, safeApproachSpeed, leadTime, pursuitSpeed } from '../core/math';
 import { makeCar, CAR_SHAPES, type CarShape } from '../render/Assets';
-import { circleOverlap, nearestIndex } from './Collision';
+import { circleOverlap, nearestIndex, resolveCarImpulse } from './Collision';
 import { Debris } from './Debris';
 import { Smoke } from './Smoke';
 import { World, defineComponent } from '../ecs/World';
@@ -533,19 +533,22 @@ export class Vehicles {
         const o = circleOverlap(a.x, a.z, b.x, b.z, CAR_RADIUS * 2);
         if (!o) continue;
 
-        const half = o.depth / 2;
-        a.x += o.nx * half;
-        a.z += o.nz * half;
-        b.x -= o.nx * half;
-        b.z -= o.nz * half;
+        // Separate mass-biased: the lighter car gives more ground.
+        const ma = a.profile.mass;
+        const mb = b.profile.mass;
+        const fa = mb / (ma + mb);
+        a.x += o.nx * o.depth * fa;
+        a.z += o.nz * o.depth * fa;
+        b.x -= o.nx * o.depth * (1 - fa);
+        b.z -= o.nz * o.depth * (1 - fa);
 
         const vn = (a.vx - b.vx) * o.nx + (a.vz - b.vz) * o.nz;
         if (vn < 0) {
-          const imp = (-(1 + RESTITUTION) * vn) / 2; // equal mass
-          a.vx += imp * o.nx;
-          a.vz += imp * o.nz;
-          b.vx -= imp * o.nx;
-          b.vz -= imp * o.nz;
+          const imp = resolveCarImpulse(vn, ma, mb, RESTITUTION); // mass-weighted
+          a.vx += (imp / ma) * o.nx;
+          a.vz += (imp / ma) * o.nz;
+          b.vx -= (imp / mb) * o.nx;
+          b.vz -= (imp / mb) * o.nz;
           this.damage(a, i, -vn, city); // both take the closing speed as impact
           this.damage(b, j, -vn, city);
         }

@@ -83,6 +83,16 @@ export function circleOverlap(
   return { nx: dx / dist, nz: dz / dist, depth: rSum - dist };
 }
 
+/**
+ * Impulse magnitude for a 1-D elastic-ish collision along the contact normal.
+ * `vn` is the relative normal velocity (negative = approaching); `e` is
+ * restitution. `j/ma` and `-j/mb` are the per-car normal-velocity changes.
+ * Equal masses reduce to the old `-(1+e)·vn/2` per car. Pure.
+ */
+export function resolveCarImpulse(vn: number, ma: number, mb: number, e: number): number {
+  return (-(1 + e) * vn) / (1 / ma + 1 / mb);
+}
+
 /** Index of the nearest point within `maxDist`, or -1. */
 export function nearestIndex(
   x: number,

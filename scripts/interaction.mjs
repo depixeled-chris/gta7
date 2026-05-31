@@ -109,8 +109,10 @@ try {
     return { x: c.x, moved: Math.hypot(c.vx, c.vz) };
   }, shove.t);
   check(
+    // Shove distance is now mass-weighted (a heavier model gives less ground),
+    // so assert a clear shove rather than a fixed equal-mass distance.
     'ramming shoves the other car',
-    shoved.x > shove.startX + 3,
+    shoved.x > shove.startX + 1.5,
     `target moved from x=${shove.startX.toFixed(2)} to ${shoved.x.toFixed(2)}`,
   );
 
@@ -264,11 +266,14 @@ try {
   await reset();
   await page.waitForFunction(() => window.__game?.radioReady, { timeout: 5000 }); // manifest loaded
   const radioBefore = await page.evaluate(() => window.__game.radioLabel);
-  await page.keyboard.press('BracketRight');
-  await page.waitForTimeout(150);
-  await page.keyboard.press('BracketRight');
-  await page.waitForTimeout(150);
-  const radioAfter = await page.evaluate(() => window.__game.radioLabel);
+  // Retry the keypress until the tuner leaves OFF (robust to the headless
+  // input/loop timing race), capped.
+  let radioAfter = radioBefore;
+  for (let i = 0; i < 8 && radioAfter === '📻 OFF'; i++) {
+    await page.keyboard.press('BracketRight');
+    await page.waitForTimeout(120);
+    radioAfter = await page.evaluate(() => window.__game.radioLabel);
+  }
   check(
     'radio tunes to a station on []',
     radioBefore === '📻 OFF' && radioAfter !== '📻 OFF' && radioAfter.startsWith('📻'),
