@@ -600,6 +600,17 @@ try {
   });
   check('cars have varied body shapes', shapes.length > 1, `shapes=${shapes.join(',')}`);
 
+  // --- 14c. Cars are specific makes/models; you're driving one.
+  const models = await page.evaluate(() => ({
+    distinct: new Set(window.__game.vehicles.cars.map((c) => c.profile.id)).size,
+    driving: window.__game.carModel,
+  }));
+  check(
+    'cars are named makes/models and you drive one',
+    models.distinct > 1 && typeof models.driving === 'string' && models.driving.length > 0,
+    `distinct models=${models.distinct}, driving "${models.driving}"`,
+  );
+
   // --- 14b. On foot, you can't clip through a parked car — you get pushed out.
   await reset();
   await page.keyboard.press('KeyF'); // on foot

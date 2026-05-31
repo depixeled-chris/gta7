@@ -14,7 +14,7 @@ import { GameLoop } from './core/GameLoop';
 import { lerp, angleLerp, starsFromHeat } from './core/math';
 import { Radio } from './audio/Radio';
 import { Sfx } from './audio/Sfx';
-import { toMph, DEFAULT_VEHICLE, type VehicleInput } from './vehicles/VehicleModel';
+import { toMph, type VehicleInput } from './vehicles/VehicleModel';
 
 /** Touch UI + lower quality on coarse-pointer devices; `?touch=1|0` forces it. */
 function isTouchDevice(): boolean {
@@ -444,7 +444,7 @@ function render(alpha: number, frameDt: number): void {
 
   const driving = mode === 'driving';
   if (driving) {
-    sfx.setEngine(Math.abs(vehicles.playerForwardSpeed()) / DEFAULT_VEHICLE.maxSpeed, 1);
+    sfx.setEngine(Math.abs(vehicles.playerForwardSpeed()) / vehicles.playerMaxSpeed(), 1);
     sfx.setScreech(Math.max(0, (vehicles.playerLateralSpeed() - 2) / 8));
     if (radio) radio.updateProximity(true, 0);
   } else {
@@ -494,6 +494,7 @@ declare global {
       readonly police: number;
       readonly timeOfDay: number;
       readonly radioReady: boolean;
+      readonly carModel: string | null;
       readonly perf: Perf;
       vehicles: Vehicles;
       player: Player;
@@ -535,6 +536,9 @@ window.__game = {
   },
   get radioReady() {
     return radio !== null; // manifest fetched + tuner built
+  },
+  get carModel() {
+    return vehicles.playerCarName();
   },
   get perf() {
     return perf;

@@ -14,9 +14,11 @@ import {
   lateralSpeedOf,
   crashDamage,
   CAR_MAX_HEALTH,
-  DEFAULT_VEHICLE,
   type VehicleInput,
 } from '../vehicles/VehicleModel';
+import { PROFILES, INTERCEPTOR, PLAYER_PROFILE, type CarProfile } from '../vehicles/profiles';
+
+const shapeFor = (id: string): CarShape => CAR_SHAPES.find((s) => s.id === id) ?? CAR_SHAPES[0];
 
 /**
  * Every car — the one the player drives, ambient AI traffic, and abandoned
@@ -46,6 +48,7 @@ interface Car {
   health: number; // body integrity; explodes at 0 (see crashDamage)
   color: number; // body colour, for the explosion debris
   shapeId: string; // car body silhouette (visual variety)
+  profile: CarProfile; // make/model + tuned handling (used when this car is driven)
   group: THREE.Group;
   steerWheels: THREE.Object3D[];
   lightMat?: THREE.MeshStandardMaterial; // police roof light (flashed in render)
@@ -121,8 +124,7 @@ export class Vehicles {
     seed = 909,
   ) {
     this.smoke = new Smoke(scene);
-    const sedan = CAR_SHAPES[0];
-    this.spawn(scene, makeCar(PLAYER_COLOR, sedan), PLAYER_COLOR, sedan.id, city.center.x, city.center.z, 0, 'parked', null, 0);
+    this.spawn(scene, makeCar(PLAYER_COLOR, shapeFor(PLAYER_PROFILE.shapeId)), PLAYER_COLOR, PLAYER_PROFILE, city.center.x, city.center.z, 0, 'parked', null, 0);
 
     const rng = createRng(seed);
     for (let i = 0; i < trafficCount && city.lanes.length > 0; i++) {
@@ -131,20 +133,19 @@ export class Vehicles {
       const x = lane.axis === 'x' ? along : lane.fixed;
       const z = lane.axis === 'z' ? along : lane.fixed;
       const color = rng.pick(TRAFFIC_COLORS);
-      const shape = rng.pick(CAR_SHAPES);
-      this.spawn(scene, makeCar(color, shape), color, shape.id, x, z, 0, 'ai', lane, rng.range(10, 22));
+      const profile = rng.pick(PROFILES);
+      this.spawn(scene, makeCar(color, shapeFor(profile.shapeId)), color, profile, x, z, 0, 'ai', lane, rng.range(10, 22));
     }
 
     for (const spot of city.parkingSpots) {
       const color = rng.pick(TRAFFIC_COLORS);
-      const shape = rng.pick(CAR_SHAPES);
-      this.spawn(scene, makeCar(color, shape), color, shape.id, spot.x, spot.z, spot.heading, 'parked', null, 0);
+      const profile = rng.pick(PROFILES);
+      this.spawn(scene, makeCar(color, shapeFor(profile.shapeId)), color, profile, spot.x, spot.z, spot.heading, 'parked', null, 0);
     }
 
     // A pool of idle police cars (hidden off-map) that a wanted level activates.
-    const policeShape: CarShape = CAR_SHAPES.find((s) => s.id === 'sports') ?? CAR_SHAPES[0];
     for (let i = 0; i < POLICE_POOL; i++) {
-      const mesh = makeCar(POLICE_COLOR, policeShape);
+      const mesh = makeCar(POLICE_COLOR, shapeFor(INTERCEPTOR.shapeId));
       const lightMat = new THREE.MeshStandardMaterial({
         color: 0x220008,
         emissive: 0xff2030,
@@ -158,7 +159,7 @@ export class Vehicles {
       const car: Car = {
         x: 1e6, z: 1e6, heading: 0, vx: 0, vz: 0, px: 1e6, pz: 1e6, ph: 0,
         role: 'police', active: false, lane: null, cruise: 0,
-        health: CAR_MAX_HEALTH, color: POLICE_COLOR, shapeId: policeShape.id,
+        health: CAR_MAX_HEALTH, color: POLICE_COLOR, shapeId: INTERCEPTOR.shapeId, profile: INTERCEPTOR,
         group: mesh.group, steerWheels: mesh.steerWheels, lightMat,
       };
       this.cars.push(car);
@@ -170,7 +171,7 @@ export class Vehicles {
     scene: THREE.Scene,
     mesh: { group: THREE.Group; steerWheels: THREE.Object3D[] },
     color: number,
-    shapeId: string,
+    profile: CarProfile,
     x: number,
     z: number,
     heading: number,
@@ -183,7 +184,7 @@ export class Vehicles {
     scene.add(mesh.group);
     const car: Car = {
       x, z, heading, vx: 0, vz: 0, px: x, pz: z, ph: heading,
-      role, active: true, lane, cruise, health: CAR_MAX_HEALTH, color, shapeId,
+      role, active: true, lane, cruise, health: CAR_MAX_HEALTH, color, shapeId: profile.shapeId, profile,
       group: mesh.group, steerWheels: mesh.steerWheels,
     };
     this.cars.push(car);
@@ -231,7 +232,7 @@ export class Vehicles {
 
     if (playerCar && this.curInput) {
       this.steer = this.curInput.steer;
-      const next = stepVehicle(playerCar, this.curInput, DEFAULT_VEHICLE, dt);
+      const next = stepVehicle(playerCar, this.curInput, playerCar.profile, dt);
       playerCar.x = next.x;
       playerCar.z = next.z;
       playerCar.heading = next.heading;
@@ -630,6 +631,19 @@ export class Vehicles {
   /** Live smoke-particle count (debug/telemetry). */
   smokeParticles(): number {
     return this.smoke.activeCount();
+  }
+
+  /** "Manufacturer Model" of the car you're driving, or null on foot. */
+  playerCarName(): string | null {
+    if (this.playerIndex === null) return null;
+    const p = this.cars[this.playerIndex].profile;
+    return `${p.manufacturer} ${p.model}`;
+  }
+
+  /** Top speed of the current car (for engine-pitch normalization), or a default. */
+  playerMaxSpeed(): number {
+    if (this.playerIndex === null) return PLAYER_PROFILE.maxSpeed;
+    return this.cars[this.playerIndex].profile.maxSpeed;
   }
 
   /** Player car body integrity (0–100), or full health on foot. */
