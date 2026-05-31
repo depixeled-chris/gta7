@@ -49,6 +49,8 @@ Phases (each shippable, test-backed; top = do first):
 
 ## 🔵 Queued (triaged, not started)
 *(R005 & R007 now live in the World-gen epic above.)*
+- [R036] 🔴 **Gamepad support (HIGH PRIORITY)** — @maintainer · read the Gamepad API and merge it into `Controls` alongside keyboard/touch (sticks → move, triggers/buttons → throttle/handbrake/enter/punch/radio). Input-layer only; independent of streaming.
+- [R035] 🔵 Rural gaps between cities — @maintainer · tune the streaming **urbanity field** low-frequency so most of the world is rural/empty with sparse dense city clusters and **long inter-city stretches** (room for chases, ambushes, getting waylaid). Pairs with highways (P5) connecting cores across the gaps.
 - [R024] 🔵 Better prop geometry — @maintainer · trees = trunk + foliage, hydrants = body+cap+nozzles, benches = seat+back+legs; keep them merged so still one InstancedMesh per type. *(separate task; current cone/box props are too primitive)*
 - [R025] 🔵 Building texture/colour variety — @maintainer · keep the procedural facade gen but add per-building hue/colour variation so blocks read as more varied
 - [R026] 🔵 Named car makes/models + tuned profiles — @maintainer · NOT procedural; hand-tuned `CarProfile`s with GTA-style manufacturer+model names, categories (sports / general / trucks / city). Supersedes R003. Discussable by name.
