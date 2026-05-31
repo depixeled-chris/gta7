@@ -198,7 +198,7 @@ export function generateCity(config: CityConfig = DEFAULT_CITY): City {
   };
 }
 
-function addBlock(
+export function addBlock(
   originX: number,
   originZ: number,
   size: number,
@@ -246,7 +246,7 @@ function addBlock(
  * strip, clear of the road and of building footprints). Biome sets how many and
  * which kinds. Corners are skipped so props don't land in road intersections.
  */
-function addProps(
+export function addProps(
   originX: number,
   originZ: number,
   size: number,
