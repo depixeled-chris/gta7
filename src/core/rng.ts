@@ -11,6 +11,28 @@ export type Rng = {
   chance(p: number): boolean;
 };
 
+/**
+ * Mix a world seed with extra tags (chunk coords, a field name) into a stable
+ * uint32 seed. Each chunk/field gets its own deterministic stream, decorrelated
+ * from its neighbors — the basis for per-chunk world generation that's identical
+ * regardless of visit order. splitmix32 avalanche over an FNV-1a hash of the tags.
+ */
+export function hashSeed(worldSeed: number, ...tags: (string | number)[]): number {
+  let h = (0x811c9dc5 ^ (worldSeed | 0)) >>> 0;
+  const mix = (n: number): void => {
+    h ^= n & 0xff;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  };
+  for (const tag of tags) {
+    const s = String(tag);
+    for (let i = 0; i < s.length; i++) mix(s.charCodeAt(i));
+    mix(0x3b); // ';' separator so ('a','b') ≠ ('ab')
+  }
+  h = Math.imul(h ^ (h >>> 16), 0x21f0aaad) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x735a2d97) >>> 0;
+  return (h ^ (h >>> 15)) >>> 0;
+}
+
 export function createRng(seed: number): Rng {
   let a = seed >>> 0;
   const next = (): number => {

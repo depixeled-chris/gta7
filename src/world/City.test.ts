@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateCity, DEFAULT_CITY } from './City';
+import { generateCity, generateChunk, DEFAULT_CITY } from './City';
 
 describe('generateCity', () => {
   it('is deterministic for a given seed', () => {
@@ -49,6 +49,45 @@ describe('generateCity', () => {
     expect(generateCity(DEFAULT_CITY).streetlights).toEqual(city.streetlights);
   });
 
+  it('is a tiling of chunks — chunk buildings sum to the whole city', () => {
+    const city = generateCity(DEFAULT_CITY);
+    const chunksPerSide = Math.ceil(DEFAULT_CITY.grid / DEFAULT_CITY.chunkBlocks);
+    let total = 0;
+    for (let cx = 0; cx < chunksPerSide; cx++) {
+      for (let cz = 0; cz < chunksPerSide; cz++) {
+        total += generateChunk(cx, cz, DEFAULT_CITY).buildings.length;
+      }
+    }
+    expect(total).toBe(city.buildings.length);
+  });
+});
+
+describe('generateChunk', () => {
+  it('is deterministic — same coord+seed yields an identical chunk', () => {
+    const a = generateChunk(1, 2, DEFAULT_CITY);
+    const b = generateChunk(1, 2, DEFAULT_CITY);
+    expect(a).toEqual(b);
+  });
+
+  it('differs by chunk coordinate (independent of visit order)', () => {
+    const a = generateChunk(0, 0, DEFAULT_CITY);
+    const b = generateChunk(1, 0, DEFAULT_CITY);
+    expect(a.buildings).not.toEqual(b.buildings);
+  });
+
+  it('differs by world seed', () => {
+    const a = generateChunk(0, 0, { ...DEFAULT_CITY, seed: 1 });
+    const b = generateChunk(0, 0, { ...DEFAULT_CITY, seed: 2 });
+    expect(a.buildings).not.toEqual(b.buildings);
+  });
+
+  it('emits one collider per building', () => {
+    const c = generateChunk(0, 0, DEFAULT_CITY);
+    expect(c.colliders.length).toBe(c.buildings.length);
+  });
+});
+
+describe('parking', () => {
   it('generates curbside parking spots that never sit inside a building', () => {
     const city = generateCity(DEFAULT_CITY);
     expect(city.parkingSpots.length).toBeGreaterThan(0);

@@ -1,4 +1,4 @@
-import { createRng } from '../core/rng';
+import { createRng, hashSeed } from '../core/rng';
 import type { Aabb } from '../systems/Collision';
 import { SpatialGrid } from '../systems/SpatialGrid';
 
@@ -36,6 +36,7 @@ export interface CityConfig {
   grid: number; // blocks per side
   blockSize: number; // building-area side length
   roadWidth: number;
+  chunkBlocks: number; // blocks per side of one generation chunk
 }
 
 export interface City {
@@ -61,17 +62,53 @@ export const DEFAULT_CITY: CityConfig = {
   grid: 8,
   blockSize: 42,
   roadWidth: 16,
+  chunkBlocks: 4, // 8x8 grid → 2x2 generation chunks
 };
+
+/** Shared geometry derived from a config: cell pitch, total extent, half-extent. */
+function metrics(config: CityConfig): { cell: number; extent: number; half: number } {
+  const cell = config.blockSize + config.roadWidth;
+  const extent = config.grid * cell + config.roadWidth; // trailing road closes the grid
+  return { cell, extent, half: extent / 2 };
+}
+
+/**
+ * Generate one chunk's worth of buildings + colliders: the blocks in the square
+ * [cx,cz] of `chunkBlocks×chunkBlocks` blocks, in world coordinates. Seeded by
+ * `hashSeed(seed, cx, cz)`, so a chunk is identical regardless of when/how it's
+ * generated — the determinism the streamed world relies on. Blocks past the
+ * finite `grid` are skipped (the current world is a finite tiling of chunks).
+ */
+export function generateChunk(
+  cx: number,
+  cz: number,
+  config: CityConfig = DEFAULT_CITY,
+): { buildings: Building[]; colliders: Aabb[] } {
+  const { grid, blockSize, roadWidth, chunkBlocks } = config;
+  const { cell, half } = metrics(config);
+  const rng = createRng(hashSeed(config.seed, cx, cz));
+  const buildings: Building[] = [];
+  const colliders: Aabb[] = [];
+
+  for (let bi = 0; bi < chunkBlocks; bi++) {
+    for (let bj = 0; bj < chunkBlocks; bj++) {
+      const gi = cx * chunkBlocks + bi; // global block index
+      const gj = cz * chunkBlocks + bj;
+      if (gi >= grid || gj >= grid) continue;
+      const blockX = gi * cell + roadWidth - half;
+      const blockZ = gj * cell + roadWidth - half;
+      addBlock(blockX, blockZ, blockSize, rng, buildings, colliders);
+    }
+  }
+  return { buildings, colliders };
+}
 
 // Dusk-city facade palette: muted concrete and glass tones.
 const PALETTE = [0x3b4252, 0x434c5e, 0x4c566a, 0x2e3440, 0x5e6472, 0x39414f];
 
 export function generateCity(config: CityConfig = DEFAULT_CITY): City {
-  const rng = createRng(config.seed);
-  const { grid, blockSize, roadWidth } = config;
-  const cell = blockSize + roadWidth;
-  const extent = grid * cell + roadWidth; // trailing road closes the grid
-  const half = extent / 2;
+  const { grid, blockSize, roadWidth, chunkBlocks } = config;
+  const { cell, extent, half } = metrics(config);
 
   // World is centered on the origin: shift every generated coordinate by -half.
   const roadCenters: number[] = [];
@@ -79,21 +116,25 @@ export function generateCity(config: CityConfig = DEFAULT_CITY): City {
     roadCenters.push(i * cell + roadWidth / 2 - half);
   }
 
+  // Buildings come from a tiling of independently-seeded chunks (the same path a
+  // streamed world will load on demand), so the finite city is just chunk (0,0)..(n,n).
   const buildings: Building[] = [];
   const colliders: Aabb[] = [];
-
-  for (let i = 0; i < grid; i++) {
-    for (let j = 0; j < grid; j++) {
-      const blockX = i * cell + roadWidth - half;
-      const blockZ = j * cell + roadWidth - half;
-      addBlock(blockX, blockZ, blockSize, rng, buildings, colliders);
+  const chunksPerSide = Math.ceil(grid / chunkBlocks);
+  for (let cx = 0; cx < chunksPerSide; cx++) {
+    for (let cz = 0; cz < chunksPerSide; cz++) {
+      const chunk = generateChunk(cx, cz, config);
+      buildings.push(...chunk.buildings);
+      colliders.push(...chunk.colliders);
     }
   }
 
   const laneOffset = roadWidth / 4;
   const lanes = buildLanes(roadCenters, half, laneOffset);
   const streetlights = buildStreetlights(roadCenters, roadWidth);
-  const parkingSpots = buildParkingSpots(roadCenters, cell, blockSize, roadWidth, half, rng, colliders);
+  // Parking gets its own deterministic stream, independent of per-chunk building RNG.
+  const parkingRng = createRng(hashSeed(config.seed, 'parking'));
+  const parkingSpots = buildParkingSpots(roadCenters, cell, blockSize, roadWidth, half, parkingRng, colliders);
 
   // Spawn at the central intersection of the grid.
   const mid = roadCenters[Math.floor(roadCenters.length / 2)];
