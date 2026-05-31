@@ -66,6 +66,27 @@ try {
   }
   check('splash shows on load and dismisses on input', splashShown && splashGone, `shown=${splashShown}, gone=${splashGone}`);
 
+  // --- 0b. Dismissing the splash raises the title menu (paused) until Play.
+  let titleState = { menu: false, paused: false };
+  for (let i = 0; i < 20 && !(titleState.menu && titleState.paused); i++) {
+    await page.waitForTimeout(100);
+    titleState = await page.evaluate(() => ({
+      menu: !!document.getElementById('menu') && getComputedStyle(document.getElementById('menu')).display !== 'none',
+      paused: window.__game.paused,
+    }));
+  }
+  await page.click('#menu-play'); // Play → enter the running game
+  await page.waitForTimeout(200);
+  const playing = await page.evaluate(() => ({
+    menu: getComputedStyle(document.getElementById('menu')).display !== 'none',
+    paused: window.__game.paused,
+  }));
+  check(
+    'title menu shows after splash and Play starts the game',
+    titleState.menu && titleState.paused && !playing.menu && !playing.paused,
+    `title{menu:${titleState.menu},paused:${titleState.paused}} -> play{menu:${playing.menu},paused:${playing.paused}}`,
+  );
+
   // --- 1. Building collision: drive straight into a wall, don't pass through.
   await reset();
   const wall = await page.evaluate(() => {

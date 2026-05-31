@@ -40,7 +40,14 @@ const container = document.getElementById('app')!;
 const touch = isTouchDevice();
 const options = loadOptions();
 dayLength = options.dayLength;
-const city = generateCity(DEFAULT_CITY);
+
+// New Game picks a seed and reloads with ?seed=; the world is built from it so
+// the same seed always regenerates the same city (determinism).
+const urlParams = new URLSearchParams(location.search);
+const seedParam = Number(urlParams.get('seed'));
+const worldSeed = Number.isFinite(seedParam) && urlParams.get('seed') !== null ? seedParam : DEFAULT_CITY.seed;
+const gameMode = urlParams.get('mode') ?? 'explore'; // only 'explore' is playable yet
+const city = generateCity({ ...DEFAULT_CITY, seed: worldSeed });
 
 const env = new SceneEnv(
   container,
@@ -599,9 +606,19 @@ function applyOptions(opts: GameOptions): void {
 }
 applyOptions(options);
 
-const menu = new Menu(container, options, {
+const menu = new Menu(container, options, worldSeed, gameMode, {
   onResume: () => setPaused(false),
   onRestart: () => location.reload(),
+  onPlay: () => {
+    menu.close();
+    loop.setPaused(false);
+  },
+  onNewGame: (seed) => {
+    const p = new URLSearchParams(location.search);
+    p.set('seed', String(seed));
+    location.search = p.toString(); // reload → world rebuilt from the new seed
+  },
+  onModeChange: () => {}, // only 'explore' is playable yet (R033)
   onOptionsChange: (opts) => {
     applyOptions(opts);
     saveOptions(opts);
@@ -609,7 +626,8 @@ const menu = new Menu(container, options, {
 });
 
 function setPaused(p: boolean): void {
-  menu.setOpen(p);
+  if (p) menu.openAs('pause');
+  else menu.close();
   loop.setPaused(p);
 }
 
@@ -633,4 +651,11 @@ const pollPause = (): void => {
 requestAnimationFrame(pollPause);
 
 loop.start();
-showSplash(container, markGesture); // title screen; dismissal (incl. gamepad) unlocks audio
+// Splash → on dismiss, unlock audio and raise the title menu (paused) until the
+// player hits Play. The e2e harness's __skipSplash bypasses dismissal, so it
+// never raises the menu and drops straight into the running game.
+showSplash(container, () => {
+  markGesture();
+  menu.openAs('title');
+  loop.setPaused(true);
+});
