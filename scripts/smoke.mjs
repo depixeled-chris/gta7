@@ -36,6 +36,7 @@ try {
 
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(3000); // let a few frames render
+  await page.evaluate(() => window.__skipSplash?.()); // reveal the scene (clean splash teardown)
 
   const dom = await page.evaluate(() => {
     const c = document.querySelector('canvas');

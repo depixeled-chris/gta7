@@ -9,6 +9,7 @@ import { Pedestrians } from './systems/Pedestrians';
 import { Debris } from './systems/Debris';
 import { World } from './ecs/World';
 import { HUD, type Mode } from './ui/HUD';
+import { showSplash } from './ui/Splash';
 import { Controls } from './core/Controls';
 import { GameLoop } from './core/GameLoop';
 import { lerp, angleLerp, starsFromHeat } from './core/math';
@@ -551,3 +552,4 @@ window.__game = {
 };
 
 new GameLoop(update, render).start();
+showSplash(container); // title screen; click/tap/key/gamepad fades into the game

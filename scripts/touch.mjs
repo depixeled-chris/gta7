@@ -33,6 +33,7 @@ try {
   page.on('pageerror', (e) => check('no page errors (mobile)', false, e.message));
   await page.goto(BASE, { waitUntil: 'load' });
   await page.waitForTimeout(800);
+  await page.evaluate(() => window.__skipSplash?.()); // skip the start splash (clean teardown)
 
   const present = await page.evaluate(() =>
     ['tc-stick', 'tc-knob', 'tc-enter', 'tc-brake', 'tc-sprint', 'tc-reset', 'tc-punch'].every((id) =>
@@ -100,6 +101,7 @@ try {
   dpage.on('pageerror', (e) => dErrors.push(e.message));
   await dpage.goto(BASE, { waitUntil: 'load' });
   await dpage.waitForTimeout(600);
+  await dpage.evaluate(() => window.__skipSplash?.());
   const noTouchUi = await dpage.evaluate(() => !document.getElementById('tc-stick'));
   check('desktop shows no touch UI', noTouchUi && dErrors.length === 0, dErrors.join('; '));
 } finally {
