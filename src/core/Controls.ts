@@ -51,6 +51,13 @@ export class Controls {
     return key || tap;
   }
 
+  /** On-foot melee. Space (handbrake is driving-only, so it's free on foot). */
+  punchPressed(): boolean {
+    const key = this.kb.wasPressed('Space');
+    const tap = this.touch?.consumePunch() ?? false;
+    return key || tap;
+  }
+
   /** Radio tuner step this frame: +1 next station, -1 previous, 0 none. */
   radioStep(): number {
     const next = this.kb.wasPressed('BracketRight');

@@ -88,6 +88,7 @@ This whole thing is a community-driven dare, built live from requests. Credit wh
 - **Police chasing you** — u/c0desurfer (*"Didn't even implement police chasing me. Boring 😄"*)
 - **Sound effects, smarter police, radio shuffle** — u/daemon-electricity
 - **Pedestrians fleeing in fear on foot** — u/This-Shape2193
+- **Punching pedestrians into pixels on foot** — u/Fit-Dot-414
 
 🎵 All radio music is by **Daemon Electricity** — [SoundCloud](https://soundcloud.com/daemonelectricity), and also on Spotify, Apple Music, Amazon, Deezer, Tidal, and most platforms. The tracks stream from a [GitHub Release](https://github.com/depixeled-chris/gta7/releases/tag/radio-v1) rather than being bundled into the site.
 

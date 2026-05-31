@@ -331,6 +331,12 @@ function update(dt: number): void {
     updateFoot(dt);
     checkPedestrianDamage();
 
+    // Punch: gib the pedestrian in front of you (scores + raises heat, like a
+    // run-over). Forward is the player's heading: (cos h, -sin h).
+    if (controls.punchPressed()) {
+      peds.punch(player.x, player.z, Math.cos(player.heading), -Math.sin(player.heading));
+    }
+
     // Footsteps cadence with travel distance (faster when sprinting).
     if (player.speed > 0.1) {
       footAccum += player.speed * dt;

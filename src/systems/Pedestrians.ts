@@ -44,6 +44,7 @@ const SHOVE_TIME = 1.6; // seconds knocked over before getting back up
 const GIB_TIME = 3.5; // seconds gibbed before respawning elsewhere
 const GRAVITY = 18;
 const FLEE_SPEED = 5; // scared pedestrians scurry faster than they stroll
+const PUNCH_RANGE = 2.6; // reach of an on-foot punch
 // Fear triggers off the active player (on foot OR in a car):
 const NEAR_RADIUS = 5.5; // proximity: anything this close scares them (walk-up or slow creep)
 const PATH_LOOK = 18; // vector: a fast threat bearing down from up to this far
@@ -196,6 +197,31 @@ export class Pedestrians {
       ped.tumble = 0;
       ped.y = 0;
     }
+  }
+
+  /**
+   * On-foot melee: gib the nearest walking pedestrian within reach and roughly
+   * in front (along dirX,dirZ) — the same pixel burst as a car hit — and score
+   * it (which raises heat, like any kill). Returns whether it connected.
+   */
+  punch(x: number, z: number, dirX: number, dirZ: number): boolean {
+    let best = -1;
+    let bestD2 = PUNCH_RANGE * PUNCH_RANGE;
+    for (let i = 0; i < this.peds.length; i++) {
+      const ped = this.peds[i];
+      if (ped.state !== 'walk') continue;
+      const dx = ped.x - x;
+      const dz = ped.z - z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > bestD2) continue;
+      const d = Math.sqrt(d2) || 1e-3;
+      if ((dx / d) * dirX + (dz / d) * dirZ < 0) continue; // must be in front of the punch
+      bestD2 = d2;
+      best = i;
+    }
+    if (best < 0) return false;
+    this.gib(this.peds[best], { vx: dirX * GIB_SPEED, vz: dirZ * GIB_SPEED, isPlayer: true });
+    return true;
   }
 
   private gib(ped: Ped, imp: { vx: number; vz: number; isPlayer: boolean }): void {

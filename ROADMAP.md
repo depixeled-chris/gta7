@@ -83,5 +83,6 @@ crash damage softened (no single hit totals an intact car) + louder footsteps ·
 [R020] iOS audio unlock — radio primed in-gesture so sound starts on first tap ·
 [R021] damaged cars trail **smoke particles** (billboard sprites, not geometry), thicker as they near wrecking ·
 [R022] touch buttons use **lucide** SVG icons (no more "F" glyph) ·
-[R019] fullscreen toggle button + PWA/home-screen path & safe-area insets (iPhone Safari has no element-fullscreen API → Add-to-Home-Screen is the true-fullscreen route).
+[R019] fullscreen toggle button + PWA/home-screen path & safe-area insets (iPhone Safari has no element-fullscreen API → Add-to-Home-Screen is the true-fullscreen route) ·
+[R023] on-foot **punch** that gibs the pedestrian in front of you into pixels (scores + raises heat) — Space / touch fist button.
 Requester credits: [README](README.md#requested-by-the-internet).

@@ -35,7 +35,7 @@ try {
   await page.waitForTimeout(800);
 
   const present = await page.evaluate(() =>
-    ['tc-stick', 'tc-knob', 'tc-enter', 'tc-brake', 'tc-sprint', 'tc-reset'].every((id) =>
+    ['tc-stick', 'tc-knob', 'tc-enter', 'tc-brake', 'tc-sprint', 'tc-reset', 'tc-punch'].every((id) =>
       document.getElementById(id),
     ),
   );

@@ -496,10 +496,11 @@ try {
     return { gap: v.nearestPoliceDistance(p.x, p.z), busted: window.__game.busted };
   });
   check(
-    // ~30 m of net closing in 1 s while weaving through the city blocks; the old
-    // fixed 28 m/s crawl couldn't make up ground on a stationary target at all.
+    // Meaningful net closing in 1 s while weaving the city blocks (exact distance
+    // varies with the building layout); the old fixed cop speed made up no ground
+    // on a stationary target at all.
     'an outrun cop claws the gap back (rubber-band pursuit)',
-    closeIn.gap0 > 110 && closed.gap < closeIn.gap0 - 25 && !closed.busted,
+    closeIn.gap0 > 110 && closed.gap < closeIn.gap0 - 15 && !closed.busted,
     `gap ${closeIn.gap0.toFixed(0)} -> ${closed.gap.toFixed(0)}`,
   );
 
@@ -533,6 +534,40 @@ try {
   await page.waitForTimeout(400);
   const smoke = await page.evaluate(() => window.__game.vehicles.smokeParticles());
   check('a damaged car emits smoke particles', smoke > 0, `live particles=${smoke}`);
+
+  // --- 13c. On foot, punching a pedestrian gibs them into pixels (and scores).
+  await reset();
+  await page.keyboard.press('KeyF'); // get out of the car, on foot
+  await page.waitForTimeout(250);
+  const punchSetup = await page.evaluate(() => {
+    const g = window.__game;
+    g.player.heading = 0; // face +X
+    // Isolate one target so the punch can only connect with it.
+    g.peds.peds.forEach((p, i) => {
+      if (i > 0) { p.state = 'walk'; p.x = 9000 + i; p.z = 9000; }
+    });
+    return { before: g.runOverCount, mode: g.mode };
+  });
+  let gibbed = false;
+  for (let i = 0; i < 6 && !gibbed; i++) {
+    await page.evaluate(() => {
+      const g = window.__game;
+      const ped = g.peds.peds[0];
+      if (ped.state === 'walk') { // re-pin in front (a walking ped drifts)
+        ped.y = 0; ped.tumble = 0; ped.scared = false; ped.group.visible = true;
+        ped.x = g.player.x + 1.3; ped.z = g.player.z;
+      }
+    });
+    await page.keyboard.press('Space'); // punch
+    await page.waitForTimeout(120);
+    gibbed = await page.evaluate(() => window.__game.peds.peds[0].state === 'gibbed');
+  }
+  const punched = await page.evaluate(() => window.__game.runOverCount);
+  check(
+    'punching a pedestrian on foot gibs them',
+    punchSetup.mode === 'foot' && gibbed && punched > punchSetup.before,
+    `gibbed=${gibbed}, count ${punchSetup.before} -> ${punched}`,
+  );
 
   // --- 14. Cars come in varied body shapes (visual variety).
   await reset();

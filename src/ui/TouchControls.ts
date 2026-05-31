@@ -7,6 +7,7 @@ import {
   ChevronsRight,
   RotateCcw,
   Radio,
+  Grab,
   Maximize,
   Minimize,
 } from 'lucide';
@@ -38,6 +39,7 @@ export class TouchControls {
   private enterEdge = false;
   private resetEdge = false;
   private radioEdge = false;
+  private punchEdge = false;
 
   private stickPointer: number | null = null;
   private readonly base: HTMLElement;
@@ -121,6 +123,7 @@ export class TouchControls {
     );
     this.holdButton(pad, 'tc-reset', RotateCcw, 'reset', () => (this.resetEdge = true));
     this.holdButton(pad, 'tc-radio', Radio, 'radio', () => (this.radioEdge = true));
+    this.holdButton(pad, 'tc-punch', Grab, 'punch', () => (this.punchEdge = true));
 
     this.addFullscreenButton(root);
   }
@@ -227,6 +230,11 @@ export class TouchControls {
     const r = this.radioEdge;
     this.radioEdge = false;
     return r;
+  }
+  consumePunch(): boolean {
+    const p = this.punchEdge;
+    this.punchEdge = false;
+    return p;
   }
 }
 
