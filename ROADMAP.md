@@ -70,6 +70,9 @@ Full write-ups in [`docs/research/`](docs/research/).
 - **R001 — Spatial grid** & **R007 — Streaming** → [research/perf-wasm-streaming.md](docs/research/perf-wasm-streaming.md). Grid first (near-O(n) collision, foundation for streaming); streaming step 0 = pure `generateChunk(cx,cz)`.
 - **R009 — Rust/WASM**: NO-GO now (premature) — same doc has the revisit triggers.
 
+## 🔵 Future (researched / informing current work)
+- [R037] 🔬 Real-time multiplayer — @maintainer · authoritative server running the deterministic ECS headless; client prediction + reconciliation; chunk = AOI = shard unit; sharding + **Redis pub/sub** + **WebSockets**. See [multiplayer.md](docs/research/multiplayer.md). Not built now — it sets *constraints* on current work (keep sim authoritative/deterministic/serializable, drive from intents, chunk-as-shard).
+
 ## ⏸ Deferred / declined
 - [R009] ⏸ Rust → WASM — premature. Revisit when >300–500 colliding bodies on a TS grid, or runtime chunk-gen hitches (>4–6 ms); try a Web Worker before WASM.
 - ⏸ Sex-worker mechanic (community) — declined (sexualized NPCs); offered a tame health-pickup alternative.
