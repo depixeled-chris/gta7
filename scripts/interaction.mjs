@@ -434,8 +434,11 @@ try {
     p.x = c.minX - 5; p.z = z; p.vx = 0; p.vz = 0;
     return { px: c.minX - 5, ex: c.maxX + 5, z };
   });
-  let cooling = false;
-  for (let i = 0; i < 70 && !cooling; i++) {
+  // "Got away" if we ever observe the cooling flag OR the stars actually drop.
+  // (At a low wanted level the cooling window is brief, so don't rely on
+  // catching the transient flag alone.)
+  let gotAway = false;
+  for (let i = 0; i < 70 && !gotAway; i++) {
     await page.evaluate((s) => {
       const v = window.__game.vehicles;
       const p = v.cars[v.playerIndex];
@@ -446,12 +449,13 @@ try {
       }
     }, losSetup);
     await page.waitForTimeout(120);
-    cooling = await page.evaluate(() => window.__game.wantedCooling);
+    const s = await page.evaluate(() => ({ cooling: window.__game.wantedCooling, wanted: window.__game.wanted }));
+    if (s.cooling || s.wanted < starsBefore) gotAway = true;
   }
   check(
     'breaking line of sight cools the wanted level',
-    starsBefore >= 1 && cooling,
-    `stars before=${starsBefore}, cooling=${cooling}`,
+    starsBefore >= 1 && gotAway,
+    `stars before=${starsBefore}, gotAway=${gotAway}`,
   );
 
   // --- 10. Radio keeps playing after you get out of the car.

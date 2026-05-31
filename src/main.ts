@@ -461,7 +461,9 @@ function render(alpha: number, frameDt: number): void {
   hud.update(speedMph, mode, active, vehicles.positions(), shownHealth, wasted);
   hud.setRunOverCount(peds.runOverCount);
   hud.setCarName(mode === 'driving' ? vehicles.playerCarName() : null);
-  hud.setRadio(radio ? radio.label() : '📻 OFF');
+  // Radio readout is a dashboard thing — only show it while driving (the audio
+  // itself still fades out with distance as you walk away).
+  hud.setRadio(mode === 'driving' ? (radio ? radio.label() : '📻 OFF') : '');
   hud.setWanted(stars, wantedCooling);
   hud.setClock(timeOfDay);
   hud.setBusted(busted);
