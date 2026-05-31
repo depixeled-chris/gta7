@@ -438,6 +438,7 @@ function render(alpha: number, frameDt: number): void {
   const shownHealth = mode === 'driving' ? vehicles.playerCarHealth() : health;
   hud.update(speedMph, mode, active, vehicles.positions(), shownHealth, wasted);
   hud.setRunOverCount(peds.runOverCount);
+  hud.setCarName(mode === 'driving' ? vehicles.playerCarName() : null);
   hud.setRadio(radio ? radio.label() : '📻 OFF');
   hud.setWanted(stars);
   hud.setBusted(busted);

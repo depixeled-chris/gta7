@@ -21,6 +21,7 @@ export class HUD {
   private readonly bustedEl: HTMLElement;
   private readonly scoreEl: HTMLElement;
   private readonly radioEl: HTMLElement;
+  private readonly carEl: HTMLElement;
   private readonly wantedEl: HTMLElement;
 
   constructor(container: HTMLElement, private readonly city: City, touch = false) {
@@ -80,6 +81,13 @@ export class HUD {
       'opacity:.8;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
     this.radioEl.textContent = '📻 OFF';
     root.appendChild(this.radioEl);
+
+    // Current car make/model, above the speedometer (driving only).
+    this.carEl = document.createElement('div');
+    this.carEl.style.cssText = speedBox.style.cssText.includes('top:12px')
+      ? 'position:absolute;right:18px;top:84px;font-size:12px;opacity:.7;text-align:right;'
+      : 'position:absolute;right:20px;bottom:92px;font-size:13px;opacity:.7;text-align:right;';
+    root.appendChild(this.carEl);
 
     const bigText =
       'position:absolute;inset:0;display:none;align-items:center;justify-content:center;' +
@@ -206,6 +214,10 @@ export class HUD {
 
   setRunOverCount(n: number): void {
     this.scoreEl.textContent = `🚶 ${n}`;
+  }
+
+  setCarName(name: string | null): void {
+    this.carEl.textContent = name ?? '';
   }
 
   setRadio(label: string): void {
