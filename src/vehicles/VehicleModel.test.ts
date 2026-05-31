@@ -116,6 +116,14 @@ describe('stepVehicle', () => {
     expect(Math.abs(lateralSpeedOf(slideTurn))).toBeGreaterThan(5);
   });
 
+  it('a powerslide can swing the nose past 90° (the slide is not pinned at a quarter turn)', () => {
+    const fast = drive(rest(), { throttle: 1 }, 180); // up to speed, heading 0
+    const drift = drive(fast, { steer: 1, handbrake: true }, 90); // hard handbrake turn
+    // The forward-projection sign used to flip once the nose passed 90° from the
+    // travel direction, inverting steering and pinning the drift near π/2.
+    expect(drift.heading).toBeGreaterThan(Math.PI / 2);
+  });
+
   it('grip realigns velocity to the heading after a turn', () => {
     const fast = drive(rest(), { throttle: 1 }, 180);
     const turned = drive(fast, { throttle: 1, steer: 1 }, 40);

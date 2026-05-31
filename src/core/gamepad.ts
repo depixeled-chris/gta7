@@ -26,10 +26,11 @@ export function radialDeadzone(x: number, y: number, dz: number): { x: number; y
 }
 
 export interface GamepadIntent {
-  x: number; // steer / strafe (right +)
-  y: number; // throttle / forward (forward +)
+  steer: number; // left stick X (right +) — steering in a car, strafing on foot
+  forward: number; // left stick Y mapped forward+ — walking on foot
+  throttle: number; // RT − LT, analog — throttle/brake in a car ONLY
   handbrake: boolean;
-  sprint: boolean;
+  sprint: boolean; // L3 (A-as-sprint is applied contextually on foot in Controls)
 }
 
 const trigger = (v: number | undefined): number => {
@@ -38,17 +39,20 @@ const trigger = (v: number | undefined): number => {
 };
 
 /**
- * Map a standard gamepad's axes + button values to the analog move intent.
- * Left stick steers/moves; the triggers (RT−LT) add throttle so driving feels
- * right. Sticks use `axes` (up is −1, so forward = −y); triggers are analog
- * `button.value`. Pure.
+ * Map a standard gamepad's axes + button values to RAW intent channels. The
+ * left stick X always steers; on FOOT the stick Y walks you; in a CAR the
+ * triggers (RT−LT) drive throttle and the stick Y is ignored (a stick is for
+ * aiming/steering, not the gas). The car-vs-foot choice is contextual and lives
+ * in `Controls`, which knows the mode. Sticks use `axes` (up is −1, so
+ * forward = −y); triggers are analog `button.value`. Pure.
  */
 export function readGamepadIntent(axes: readonly number[], buttonValues: readonly number[]): GamepadIntent {
   const stick = radialDeadzone(axes[0] ?? 0, axes[1] ?? 0, STICK_DEADZONE);
   const throttle = trigger(buttonValues[GP.RT]) - trigger(buttonValues[GP.LT]);
   return {
-    x: stick.x,
-    y: clamp(-stick.y + throttle, -1, 1),
+    steer: stick.x,
+    forward: -stick.y || 0, // avoid -0 when the stick is centred
+    throttle: clamp(throttle, -1, 1),
     handbrake: (buttonValues[GP.B] ?? 0) > 0.5,
     sprint: (buttonValues[GP.L3] ?? 0) > 0.5,
   };
@@ -90,9 +94,12 @@ export class GamepadInput {
     }
   }
 
-  move(): { x: number; y: number } {
+  /** Analog move, contextual: in a car the triggers drive the gas (stick steers
+   * only); on foot the stick walks you. */
+  move(onFoot: boolean): { x: number; y: number } {
     this.poll();
-    return this.intent ? { x: this.intent.x, y: this.intent.y } : { x: 0, y: 0 };
+    if (!this.intent) return { x: 0, y: 0 };
+    return { x: this.intent.steer, y: onFoot ? this.intent.forward : this.intent.throttle };
   }
 
   handbrake(): boolean {
@@ -100,9 +107,16 @@ export class GamepadInput {
     return this.intent?.handbrake ?? false;
   }
 
-  sprint(): boolean {
+  /** L3 always sprints; on foot, holding A sprints too (contextual). */
+  sprint(onFoot: boolean): boolean {
     this.poll();
-    return this.intent?.sprint ?? false;
+    return (this.intent?.sprint ?? false) || (onFoot && this.isDown(GP.A));
+  }
+
+  /** Held state of a button this frame. */
+  isDown(button: number): boolean {
+    this.poll();
+    return this.down[button] ?? false;
   }
 
   /** Edge-triggered: true the frame `button` transitions to pressed. */

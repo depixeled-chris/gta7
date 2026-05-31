@@ -6,9 +6,13 @@ export interface FollowParams {
   height: number;
   lookHeight: number;
   stiffness: number; // higher = snappier
+  speedPull?: number; // metres of distance pulled IN per m/s of speed (lag comp)
 }
 
-export const CAR_CAM: FollowParams = { distance: 9, height: 4.2, lookHeight: 1.4, stiffness: 4 };
+// A damped chase cam trailing a fast target settles at extra distance ≈ speed/
+// stiffness, which reads as "zooming out" at speed. `speedPull` leads the target
+// to cancel most of that lag so the framing stays roughly constant.
+export const CAR_CAM: FollowParams = { distance: 9, height: 4.2, lookHeight: 1.4, stiffness: 4, speedPull: 0.16 };
 export const FOOT_CAM: FollowParams = { distance: 5, height: 3, lookHeight: 1.4, stiffness: 7 };
 
 /**
@@ -22,12 +26,14 @@ export class FollowCamera {
   constructor(private readonly camera: THREE.PerspectiveCamera) {}
 
   /** Heading convention matches the sim: forward = (cos h, 0, -sin h). */
-  update(x: number, z: number, heading: number, p: FollowParams, dt: number): void {
+  update(x: number, z: number, heading: number, p: FollowParams, dt: number, speed = 0): void {
     const fx = Math.cos(heading);
     const fz = -Math.sin(heading);
 
-    const desiredX = x - fx * p.distance;
-    const desiredZ = z - fz * p.distance;
+    // Pull the camera in as speed rises so damping lag doesn't widen the framing.
+    const dist = Math.max(p.distance * 0.5, p.distance - speed * (p.speedPull ?? 0));
+    const desiredX = x - fx * dist;
+    const desiredZ = z - fz * dist;
 
     this.camera.position.x = damp(this.camera.position.x, desiredX, p.stiffness, dt);
     this.camera.position.y = damp(this.camera.position.y, p.height, p.stiffness, dt);

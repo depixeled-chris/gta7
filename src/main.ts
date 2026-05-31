@@ -211,13 +211,13 @@ function drivingInput(): VehicleInput {
 
 function updateFoot(dt: number): void {
   const yaw = follow.yaw;
-  const m = controls.move();
+  const m = controls.move(true);
   const cos = Math.cos(yaw);
   const sin = Math.sin(yaw);
   const dirX = cos * m.y + sin * m.x;
   const dirZ = -sin * m.y + cos * m.x;
 
-  player.update(dirX, dirZ, controls.sprint(), dt);
+  player.update(dirX, dirZ, controls.sprint(true), dt);
 
   const fixed = city.grid.resolve(player.x, player.z, FOOT_RADIUS);
   player.x = fixed.x;
@@ -443,7 +443,7 @@ function render(alpha: number, frameDt: number): void {
   updateStreetlightPool(active.x, active.z);
   updateHeadlights(mode === 'driving' && carPose ? carPose : null);
 
-  follow.update(active.x, active.z, active.heading, mode === 'driving' ? CAR_CAM : FOOT_CAM, frameDt);
+  follow.update(active.x, active.z, active.heading, mode === 'driving' ? CAR_CAM : FOOT_CAM, frameDt, Math.abs(active.speed));
 
   const speedMph = mode === 'driving' ? toMph(vehicles.playerForwardSpeed()) : toMph(player.speed);
   // The health bar reads car integrity while driving, avatar health on foot.

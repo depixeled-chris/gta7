@@ -95,9 +95,12 @@ export function stepVehicle(
   vz -= vz * cfg.drag * dt;
 
   // Steering rotates the heading; authority ramps with speed and flips in
-  // reverse. The handbrake makes it flickier.
+  // reverse. The handbrake makes it flickier. We only invert for a GENUINE
+  // reverse (backing up with grip): mid-drift the nose swings past 90° from the
+  // travel direction, so the forward projection goes negative even though the
+  // car is still sailing forward — inverting there would pin the slide at 90°.
   const authority = clamp(Math.hypot(vx, vz) / cfg.gripSpeed, 0, 1);
-  const dir = vx * fx + vz * fz >= 0 ? 1 : -1;
+  const dir = vForward < -EPS && !input.handbrake ? -1 : 1;
   const steerMul = input.handbrake ? cfg.handbrakeSteer : 1;
   const heading = state.heading + steer * cfg.turnRate * authority * dir * steerMul * dt;
 

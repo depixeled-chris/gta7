@@ -12,6 +12,10 @@ import { TouchControls } from '../ui/TouchControls';
  * Steering/throttle and on-foot strafing are both derived from `move()`:
  *   driving: throttle = move.y, steer = -move.x
  *   on foot: forward  = move.y, strafe = move.x
+ *
+ * Inputs are CONTEXTUAL: callers pass `onFoot` so the gamepad can map the same
+ * sticks/buttons differently per mode (e.g. triggers drive the gas in a car but
+ * the left stick walks you on foot; A sprints on foot but enters cars by tap).
  */
 export class Controls {
   private readonly kb = new Input();
@@ -22,7 +26,7 @@ export class Controls {
     if (touchRoot) this.touch = new TouchControls(touchRoot);
   }
 
-  move(): { x: number; y: number } {
+  move(onFoot = false): { x: number; y: number } {
     let x = this.kb.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']);
     let y = this.kb.axis(['KeyS', 'ArrowDown'], ['KeyW', 'ArrowUp']);
     if (this.touch) {
@@ -30,7 +34,7 @@ export class Controls {
       x += t.x;
       y += t.y;
     }
-    const g = this.pad.move();
+    const g = this.pad.move(onFoot);
     x += g.x;
     y += g.y;
     return { x: clamp(x, -1, 1), y: clamp(y, -1, 1) };
@@ -40,12 +44,12 @@ export class Controls {
     return this.kb.isDown('Space') || (this.touch?.handbrake ?? false) || this.pad.handbrake();
   }
 
-  sprint(): boolean {
+  sprint(onFoot = false): boolean {
     return (
       this.kb.isDown('ShiftLeft') ||
       this.kb.isDown('ShiftRight') ||
       (this.touch?.sprint ?? false) ||
-      this.pad.sprint()
+      this.pad.sprint(onFoot)
     );
   }
 
