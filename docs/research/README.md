@@ -16,7 +16,8 @@ and reference it from the relevant `R###` item in [../../ROADMAP.md](../../ROADM
 ## Index
 | Doc | Topic | Status | ROADMAP |
 | --- | --- | --- | --- |
-| [police-chase-ai.md](police-chase-ai.md) | Steering-behavior AI for the police chase | ♻️ partial | (shipped core) |
+| [police-chase-ai.md](police-chase-ai.md) | Steering AI + behaviour overhaul (patrol, LOS pursuit/cooldown, spawn-on-street) | ♻️ partial | R038 |
+| [pathfinding.md](pathfinding.md) | Road-graph A* + waypoint following, reusable for police/traffic/NPCs | 🔬 ready | R039 |
 | [car-physics-profiles.md](car-physics-profiles.md) | Maturing the vehicle model for multiple car profiles | 🔬 ready | R003 |
 | [perf-wasm-streaming.md](perf-wasm-streaming.md) | Rust/WASM ROI + chunked streaming world + spatial grid | ♻️ partial (grid shipped; streaming half → generative-world.md) | R001 / R007 / R009 |
 | [generative-world.md](generative-world.md) | Streamed deterministic world: noise biomes, highways, rivers+bridges, variety, perf/WASM order | 🔬 ready | R005 / R007 / R015–R018 (epic) |
