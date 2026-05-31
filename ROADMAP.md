@@ -32,13 +32,20 @@ Keep _Shipped_ compact (one line per item; collapse old detail). When in doubt, 
 - [R003] 🔬 Car profiles + mass — @maintainer · data-driven `CarProfile` (sports/truck/interceptor); see Researched. Damage model (R002) is in, so per-car mass/health now has a home.
 - [R004] 🔵 Proper car-car collision / no clipping — @maintainer · cars pass through each other at intersections; AI yielding (grid + damage now in place)
 
-## 🟢 World-gen epic (PAUSED — research turn pending)
-The maintainer expanded R005 into a full generative-world vision: streamed chunks
-with **noise-driven biomes** (city cores → suburbs → rural), a **highway** layer,
-**rivers + bridges**, variety in **buildings/streets/cars**, proper **AOI** + density,
-and **Rust→WASM** wherever it earns real perf. Explicitly asked for a research
-foundation first. Pulls in R005 (variety), R007 (chunking), R009 (WASM, un-deferred
-for re-evaluation at this scale). Next research turn → `docs/research/generative-world.md`.
+## 🟢 World-gen epic (🔬 RESEARCHED — foundation ready)
+Full foundation + phased plan in [`docs/research/generative-world.md`](docs/research/generative-world.md).
+Core principle: **everything is a pure function of `(worldSeed, worldX, worldZ)`** —
+continuous global fields for cross-seam features + a per-chunk hashed RNG for discrete
+placement → deterministic, seam-continuous, unit-testable. Perf order: GPU batching →
+Web Worker gen → WASM (deferred behind measurable triggers; determinism tax is why).
+Phases (each shippable, test-backed; top = do first):
+- [R015] 🔬 P1 — Field core: pure `src/core/noise.ts` (simplex + fbm/ridged/warp) + biome classifier + determinism tests
+- [R016] 🔬 P2 — `generateChunk(cx,cz)` refactor (today's city = tiling of chunks) + decouple rendering from `city.extent`
+- [R007] 🔬 P3 — AOI streaming: load/unload ring + hysteresis + per-frame budget + pooling; per-chunk traffic/peds/colliders/minimap (drop wrap-around)
+- [R005] 🔬 P4 — Biome variety: density/height/palette table + varied building footprints + street props + car variety (ties R003). *(footprint/prop/car variety can land early as a single-city "P0" quick win)*
+- [R017] 🔬 P5 — Roads & highways: field-driven warped grid + hashed-anchor highway splines + `highway` lane class
+- [R018] 🔬 P6 — Rivers & bridges: river SDF + elevation carve + water collision + bridge boolean
+- [R009] 🔬 P7 — Perf hardening: merged geometry + InstancedMesh + LOD + dispose; Worker offload if gen hitches; WASM only if triggers met
 
 ## 🔵 Queued (triaged, not started)
 - [R005] 🔵 Street & building variety — @maintainer · more shapes/colours/props/street dressing
