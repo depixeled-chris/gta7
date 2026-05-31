@@ -154,11 +154,12 @@ let pedContact = false; // were we in contact with a car last frame (edge-trigge
 // Wanted system: "heat" rises with crimes and decays after a grace period;
 // it maps to 0–5 stars, and each star is one chasing police car.
 const CRIME_HEAT = 16; // heat added per pedestrian you personally run over
-const HEAT_GRACE = 6; // seconds of no crime before heat starts to cool
+const HEAT_GRACE = 4; // seconds OUT OF POLICE SIGHT before heat starts to cool
 const HEAT_DECAY = 11; // heat lost per second once cooling
 let heat = 0;
 let stars = 0;
-let sinceCrime = 0;
+let sinceUnseen = 0; // seconds since a cop last had line of sight (the "get away" timer)
+let wantedCooling = false; // true while stars are cooling off (HUD flashes them)
 let prevRunOver = 0;
 
 // Busted: a chasing cop pins you slow for long enough → arrested, game resets.
@@ -241,7 +242,8 @@ function respawn(): void {
   health = MAX_HEALTH;
   pedContact = false;
   heat = 0; // getting WASTED/BUSTED clears your wanted level
-  sinceCrime = 0;
+  sinceUnseen = 0;
+  wantedCooling = false;
   mode = 'foot';
   player.x = city.center.x;
   player.z = city.center.z + 6;
@@ -278,20 +280,29 @@ function chaseTarget(): { x: number; z: number; vx: number; vz: number } {
   };
 }
 
-/** Crimes raise heat; it cools after a grace period. Heat → wanted stars → police. */
+/**
+ * Crimes raise heat → wanted stars → police. You "get away" GTA-style: once no
+ * cop has line of sight to you (broke LOS behind a building, or outran their
+ * sight range), the heat cools after a short grace and the stars drop.
+ */
 function updateWanted(dt: number): void {
   const over = peds.runOverCount;
+  const t = chaseTarget();
+  const seen = stars > 0 && vehicles.anyPoliceSeesTarget(t.x, t.z, city.colliders);
   if (over > prevRunOver) {
     sfx.gib();
     heat = Math.min(100, heat + (over - prevRunOver) * CRIME_HEAT);
-    sinceCrime = 0;
+    sinceUnseen = 0;
+  } else if (seen) {
+    sinceUnseen = 0; // they have eyes on you — wanted holds
   } else {
-    sinceCrime += dt;
-    if (sinceCrime > HEAT_GRACE) heat = Math.max(0, heat - HEAT_DECAY * dt);
+    sinceUnseen += dt;
+    if (sinceUnseen > HEAT_GRACE) heat = Math.max(0, heat - HEAT_DECAY * dt);
   }
   prevRunOver = over;
+  wantedCooling = stars > 0 && !seen && sinceUnseen > HEAT_GRACE;
   stars = starsFromHeat(heat);
-  vehicles.setWanted(stars, chaseTarget(), city);
+  vehicles.setWanted(stars, t, city);
 }
 
 /** While on foot, take damage from cars that hit us; trigger WASTED at zero. */
@@ -441,7 +452,7 @@ function render(alpha: number, frameDt: number): void {
   hud.setRunOverCount(peds.runOverCount);
   hud.setCarName(mode === 'driving' ? vehicles.playerCarName() : null);
   hud.setRadio(radio ? radio.label() : '📻 OFF');
-  hud.setWanted(stars);
+  hud.setWanted(stars, wantedCooling);
   hud.setBusted(busted);
 
   const driving = mode === 'driving';
@@ -493,6 +504,7 @@ declare global {
       readonly runOverCount: number;
       readonly radioLabel: string;
       readonly wanted: number;
+      readonly wantedCooling: boolean;
       readonly police: number;
       readonly timeOfDay: number;
       readonly radioReady: boolean;
@@ -529,6 +541,9 @@ window.__game = {
   },
   get wanted() {
     return stars;
+  },
+  get wantedCooling() {
+    return wantedCooling;
   },
   get police() {
     return vehicles.activePoliceCount();

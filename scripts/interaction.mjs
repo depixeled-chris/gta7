@@ -26,6 +26,34 @@ try {
     await page.evaluate(() => window.__skipSplash?.()); // skip the start splash (clean teardown)
   };
 
+  // Drive over a line of pedestrians to earn a wanted level. Polls for police
+  // rather than waiting a fixed time — the headless renderer steps the fixed-
+  // timestep sim slowly under load, so a fixed wait under-travels the car.
+  const raiseWanted = async () => {
+    await page.evaluate(() => {
+      const g = window.__game;
+      const p = g.vehicles.cars[g.vehicles.playerIndex];
+      for (let i = 0; i < 4; i++) {
+        const ped = g.peds.peds[i];
+        ped.state = 'walk'; ped.group.visible = true; ped.y = 0; ped.tumble = 0;
+        ped.x = p.x + 6 + i * 3; ped.z = p.z;
+      }
+      p.heading = 0; p.vx = 24; p.vz = 0;
+    });
+    await page.keyboard.down('KeyW');
+    let heat = { kills: 0, wanted: 0, police: 0 };
+    for (let i = 0; i < 45 && heat.police < 1; i++) {
+      await page.waitForTimeout(120);
+      heat = await page.evaluate(() => ({
+        kills: window.__game.runOverCount,
+        wanted: window.__game.wanted,
+        police: window.__game.police,
+      }));
+    }
+    await page.keyboard.up('KeyW');
+    return heat;
+  };
+
   // --- 0. Start splash shows on load and dismisses on input (fades out).
   await page.goto(URL, { waitUntil: 'load' });
   await page.waitForTimeout(500);
@@ -71,12 +99,15 @@ try {
   const target = await page.evaluate(() => {
     const g = window.__game;
     const cars = g.vehicles.cars;
-    let j = -1;
-    for (let i = 0; i < cars.length; i++) {
-      if (i !== g.vehicles.playerIndex && cars[i].role === 'ai') { j = i; break; }
+    const j = cars.findIndex((c, i) => i !== g.vehicles.playerIndex && c.role === 'ai');
+    // Freeze ALL traffic so no other car drifts within reach before we press F
+    // (otherwise the nearest enterable car — and thus which one we board — is a
+    // race against the moving sim).
+    for (const c of cars) {
+      if (c.role === 'ai') { c.role = 'parked'; c.lane = null; }
+      c.vx = 0; c.vz = 0;
     }
     const c = cars[j];
-    c.role = 'parked'; c.lane = null; c.vx = c.vz = 0; // stop it so it can't drive off
     g.player.x = c.x - 2.6; g.player.z = c.z; // beside it: within reach, clear of push-out
     return { j, wasFoot: g.mode === 'foot' };
   });
@@ -136,11 +167,21 @@ try {
   // --- 3b. Carjack a curbside PARKED car (not just moving traffic).
   await reset();
   await page.keyboard.press('KeyF'); // exit spawn car -> on foot
-  await page.waitForTimeout(200);
+  // Poll for the exit to land before we relocate — pressing F again mid-exit
+  // would just re-enter the spawn car (index 0).
+  for (let i = 0; i < 10; i++) {
+    if (await page.evaluate(() => window.__game.mode === 'foot')) break;
+    await page.waitForTimeout(100);
+  }
   const park = await page.evaluate(() => {
     const g = window.__game;
     const v = g.vehicles;
     const cars = v.cars;
+    // Freeze ALL traffic so no other car drifts within reach before we press F.
+    for (const c of cars) {
+      if (c.role === 'ai') { c.role = 'parked'; c.lane = null; }
+      c.vx = 0; c.vz = 0;
+    }
     // A parked car away from the spawn point (i.e. a curbside one, not the car we just left).
     let j = -1;
     for (let i = 0; i < cars.length; i++) {
@@ -314,25 +355,7 @@ try {
 
   // --- 8. Crime summons police: mow down pedestrians, get a wanted level + chasers.
   await reset();
-  await page.evaluate(() => {
-    const g = window.__game;
-    const p = g.vehicles.cars[g.vehicles.playerIndex];
-    for (let i = 0; i < 3; i++) {
-      const ped = g.peds.peds[i];
-      ped.state = 'walk'; ped.group.visible = true; ped.y = 0; ped.tumble = 0;
-      ped.x = p.x + 6 + i * 3; ped.z = p.z;
-    }
-    p.heading = 0; p.vx = 24; p.vz = 0;
-  });
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(1300);
-  await page.keyboard.up('KeyW');
-  await page.waitForTimeout(300);
-  const heat = await page.evaluate(() => ({
-    kills: window.__game.runOverCount,
-    wanted: window.__game.wanted,
-    police: window.__game.police,
-  }));
+  const heat = await raiseWanted();
   check(
     'running people over raises a wanted level and spawns police',
     heat.kills >= 1 && heat.wanted >= 1 && heat.police >= 1,
@@ -374,23 +397,13 @@ try {
 
   // --- 9c. BUSTED: a cop pinning you slow resets the game.
   await reset();
-  await page.evaluate(() => {
-    const g = window.__game;
-    const p = g.vehicles.cars[g.vehicles.playerIndex];
-    for (let i = 0; i < 3; i++) {
-      const ped = g.peds.peds[i];
-      ped.state = 'walk'; ped.group.visible = true; ped.x = p.x + 6 + i * 3; ped.z = p.z;
-    }
-    p.heading = 0; p.vx = 24; p.vz = 0;
-  });
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(1200);
-  await page.keyboard.up('KeyW');
+  await raiseWanted(); // earn a chaser
   let bustedSeen = false;
   // Keep re-pinning (player still, a cop just within bust range but outside
-  // collision range) and poll for BUSTED. Generous iteration count because the
-  // bust meter needs ~1.8s of SIM time and the headless renderer runs slow.
-  for (let i = 0; i < 45 && !bustedSeen; i++) {
+  // collision range, in the open so it keeps eyes on you) and poll for BUSTED.
+  // Generous iteration count because the bust meter needs ~1.8s of SIM time and
+  // the headless renderer runs slow.
+  for (let i = 0; i < 60 && !bustedSeen; i++) {
     await page.evaluate(() => {
       const v = window.__game.vehicles;
       const p = v.cars[v.playerIndex];
@@ -402,6 +415,40 @@ try {
     bustedSeen = await page.evaluate(() => window.__game.busted);
   }
   check('cops bust you when they pin you slow', bustedSeen, `busted=${bustedSeen}`);
+
+  // --- 9d. "Get away": break the cops' line of sight and the wanted level cools.
+  await reset();
+  const starsBefore = (await raiseWanted()).wanted;
+  // Drop a building between you and the cop so it can't see you, and hold there.
+  const losSetup = await page.evaluate(() => {
+    const g = window.__game;
+    const v = g.vehicles;
+    const c = g.city.colliders.reduce((a, b) =>
+      (b.maxX - b.minX) * (b.maxZ - b.minZ) > (a.maxX - a.minX) * (a.maxZ - a.minZ) ? b : a);
+    const z = (c.minZ + c.maxZ) / 2;
+    const p = v.cars[v.playerIndex];
+    p.x = c.minX - 5; p.z = z; p.vx = 0; p.vz = 0;
+    return { px: c.minX - 5, ex: c.maxX + 5, z };
+  });
+  let cooling = false;
+  for (let i = 0; i < 70 && !cooling; i++) {
+    await page.evaluate((s) => {
+      const v = window.__game.vehicles;
+      const p = v.cars[v.playerIndex];
+      p.x = s.px; p.z = s.z; p.vx = 0; p.vz = 0;
+      // Park EVERY active cop on the far side of the building (all sight lines blocked).
+      for (const c of v.cars) {
+        if (c.role === 'police' && c.active) { c.x = s.ex; c.z = s.z; c.vx = 0; c.vz = 0; }
+      }
+    }, losSetup);
+    await page.waitForTimeout(120);
+    cooling = await page.evaluate(() => window.__game.wantedCooling);
+  }
+  check(
+    'breaking line of sight cools the wanted level',
+    starsBefore >= 1 && cooling,
+    `stars before=${starsBefore}, cooling=${cooling}`,
+  );
 
   // --- 10. Radio keeps playing after you get out of the car.
   await reset();

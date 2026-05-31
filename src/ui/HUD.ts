@@ -57,7 +57,9 @@ export class HUD {
     this.wantedEl.style.cssText =
       'position:absolute;left:20px;top:74px;font-size:18px;letter-spacing:3px;' +
       'color:#ffd24a;text-shadow:0 1px 4px #000;';
-    root.appendChild(this.wantedEl);
+    const wantedStyle = document.createElement('style');
+    wantedStyle.textContent = '@keyframes wantedFlash{0%{opacity:1}100%{opacity:.25}}';
+    root.append(wantedStyle, this.wantedEl);
 
     const healthTrack = document.createElement('div');
     healthTrack.style.cssText =
@@ -224,8 +226,10 @@ export class HUD {
     this.radioEl.textContent = label;
   }
 
-  setWanted(stars: number): void {
+  setWanted(stars: number, cooling = false): void {
     this.wantedEl.textContent = stars > 0 ? '★'.repeat(stars) : '';
+    // Flash the stars while you're shaking the cops (wanted cooling off).
+    this.wantedEl.style.animation = cooling ? 'wantedFlash .5s steps(2) infinite' : 'none';
   }
 
   setBusted(on: boolean): void {

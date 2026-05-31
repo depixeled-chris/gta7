@@ -4,11 +4,28 @@ import {
   resolveCircle,
   circleOverlap,
   resolveCarImpulse,
+  segmentBlocked,
   nearestIndex,
   type Aabb,
 } from './Collision';
 
 const box: Aabb = { minX: -5, minZ: -5, maxX: 5, maxZ: 5 };
+
+describe('segmentBlocked (line of sight)', () => {
+  const wall: Aabb[] = [{ minX: -2, minZ: -2, maxX: 2, maxZ: 2 }];
+  it('is blocked when a box sits between the endpoints', () => {
+    expect(segmentBlocked(-10, 0, 10, 0, wall)).toBe(true); // straight through the box
+  });
+  it('is clear when the box is off to the side', () => {
+    expect(segmentBlocked(-10, 8, 10, 8, wall)).toBe(false); // passes well above (z=8)
+  });
+  it('is clear when both endpoints are on the same side', () => {
+    expect(segmentBlocked(-10, 0, -5, 0, wall)).toBe(false); // segment ends before the box
+  });
+  it('is clear with no boxes', () => {
+    expect(segmentBlocked(-10, 0, 10, 0, [])).toBe(false);
+  });
+});
 
 describe('resolveCarImpulse', () => {
   it('equal masses reduce to the old per-car -(1+e)·vn/2 velocity change', () => {

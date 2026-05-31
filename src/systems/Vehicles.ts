@@ -3,7 +3,7 @@ import type { City, Lane } from '../world/City';
 import { createRng } from '../core/rng';
 import { damp, lerp, angleLerp, safeApproachSpeed, leadTime, pursuitSpeed } from '../core/math';
 import { makeCar, CAR_SHAPES, type CarShape } from '../render/Assets';
-import { circleOverlap, nearestIndex, resolveCarImpulse } from './Collision';
+import { circleOverlap, nearestIndex, resolveCarImpulse, segmentBlocked, type Aabb } from './Collision';
 import { Debris } from './Debris';
 import { Smoke } from './Smoke';
 import { World, defineComponent } from '../ecs/World';
@@ -78,6 +78,7 @@ const POLICE_RUBBERBAND = 0.6; // extra m/s of chase speed per metre of gap
 const POLICE_ACCEL = 5; // how hard cruisers wind up to their chase speed
 const POLICE_SPAWN_DIST = 72; // how far from the player a cruiser appears
 const POLICE_LEASH = 150; // a cop that falls beyond this is re-summoned near the player
+const POLICE_SIGHT = 70; // how far a cop can see the player (for the wanted cooldown)
 // Steering-behavior weights (Reynolds): blended into a desired direction.
 const POLICE_LEAD = 1.2; // s of interception lead, capped
 const POLICE_PURSUE_W = 1.0;
@@ -488,6 +489,20 @@ export class Vehicles {
 
   activePoliceCount(): number {
     return this.cars.filter((c) => c.role === 'police' && c.active).length;
+  }
+
+  /**
+   * Does any active cop have line of sight to (x,z) — within sight range and not
+   * occluded by a building? Drives the "get away" wanted cooldown: break LOS (or
+   * outrun their sight) and your stars cool off.
+   */
+  anyPoliceSeesTarget(x: number, z: number, colliders: readonly Aabb[]): boolean {
+    for (const c of this.cars) {
+      if (c.role !== 'police' || !c.active) continue;
+      if (Math.hypot(c.x - x, c.z - z) > POLICE_SIGHT) continue;
+      if (!segmentBlocked(c.x, c.z, x, z, colliders)) return true;
+    }
+    return false;
   }
 
   /** Distance to the nearest active police car from (x,z), or Infinity if none. */

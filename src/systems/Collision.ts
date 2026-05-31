@@ -93,6 +93,49 @@ export function resolveCarImpulse(vn: number, ma: number, mb: number, e: number)
   return (-(1 + e) * vn) / (1 / ma + 1 / mb);
 }
 
+/** Does segment A→B cross this AABB? (2D slab test, segment param t∈[0,1].) */
+function segHitsAabb(ax: number, az: number, bx: number, bz: number, box: Aabb): boolean {
+  const dx = bx - ax;
+  const dz = bz - az;
+  let tmin = 0;
+  let tmax = 1;
+  // X slab
+  if (Math.abs(dx) < 1e-9) {
+    if (ax < box.minX || ax > box.maxX) return false;
+  } else {
+    let t1 = (box.minX - ax) / dx;
+    let t2 = (box.maxX - ax) / dx;
+    if (t1 > t2) [t1, t2] = [t2, t1];
+    tmin = Math.max(tmin, t1);
+    tmax = Math.min(tmax, t2);
+    if (tmin > tmax) return false;
+  }
+  // Z slab
+  if (Math.abs(dz) < 1e-9) {
+    if (az < box.minZ || az > box.maxZ) return false;
+  } else {
+    let t1 = (box.minZ - az) / dz;
+    let t2 = (box.maxZ - az) / dz;
+    if (t1 > t2) [t1, t2] = [t2, t1];
+    tmin = Math.max(tmin, t1);
+    tmax = Math.min(tmax, t2);
+    if (tmin > tmax) return false;
+  }
+  return true;
+}
+
+/** True if the line of sight A→B is blocked by any of the boxes (buildings). */
+export function segmentBlocked(
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  boxes: readonly Aabb[],
+): boolean {
+  for (const box of boxes) if (segHitsAabb(ax, az, bx, bz, box)) return true;
+  return false;
+}
+
 /** Index of the nearest point within `maxDist`, or -1. */
 export function nearestIndex(
   x: number,
