@@ -6,6 +6,7 @@ import { makeCar, CAR_SHAPES, type CarShape } from '../render/Assets';
 import { circleOverlap, nearestIndex } from './Collision';
 import { Debris } from './Debris';
 import { Smoke } from './Smoke';
+import { World, defineComponent } from '../ecs/World';
 import {
   stepVehicle,
   speedOf,
@@ -91,6 +92,9 @@ export interface PedImpact {
   isPlayer: boolean; // was it the player's car (for scoring run-overs)
 }
 
+/** Each car is an entity carrying its `Car` data as one component. */
+const Vehicle = defineComponent<Car>('Vehicle');
+
 export class Vehicles {
   private readonly cars: Car[] = [];
   playerIndex: number | null = 0;
@@ -101,6 +105,14 @@ export class Vehicles {
   private explosions = 0; // car wrecks since main last consumed them (for SFX)
   private playerWreckPending = false; // player car blew up → main triggers WASTED
   wreckCount = 0; // monotonic total wrecks (debug/telemetry)
+
+  // Cars are ECS entities; the per-car passes run as systems over query(Vehicle).
+  // (Collision and player-index logic stay array/index based — see simStep.)
+  private readonly world = new World();
+  private curCity: City | null = null;
+  private curInput: VehicleInput | null = null;
+  private curPedestrian: { x: number; z: number } | null = null;
+  private curChase: { x: number; z: number; vx?: number; vz?: number } | null = null;
 
   constructor(scene: THREE.Scene, city: City, trafficCount = 40, seed = 909) {
     this.debris = new Debris(scene);
@@ -139,13 +151,18 @@ export class Vehicles {
       mesh.group.add(bar);
       mesh.group.visible = false;
       scene.add(mesh.group);
-      this.cars.push({
+      const car: Car = {
         x: 1e6, z: 1e6, heading: 0, vx: 0, vz: 0, px: 1e6, pz: 1e6, ph: 0,
         role: 'police', active: false, lane: null, cruise: 0,
         health: CAR_MAX_HEALTH, color: POLICE_COLOR, shapeId: policeShape.id,
         group: mesh.group, steerWheels: mesh.steerWheels, lightMat,
-      });
+      };
+      this.cars.push(car);
+      this.world.add(this.world.create(), Vehicle, car);
     }
+
+    this.world.addSystem('update', (w, dt) => this.simStep(w, dt));
+    this.world.addSystem('render', (w, alpha) => this.renderCars(w, alpha));
   }
 
   private spawn(
@@ -163,11 +180,13 @@ export class Vehicles {
     mesh.group.position.set(x, 0, z);
     mesh.group.rotation.y = heading;
     scene.add(mesh.group);
-    this.cars.push({
+    const car: Car = {
       x, z, heading, vx: 0, vz: 0, px: x, pz: z, ph: heading,
       role, active: true, lane, cruise, health: CAR_MAX_HEALTH, color, shapeId,
       group: mesh.group, steerWheels: mesh.steerWheels,
-    });
+    };
+    this.cars.push(car);
+    this.world.add(this.world.create(), Vehicle, car);
   }
 
   update(
@@ -177,42 +196,11 @@ export class Vehicles {
     pedestrian: { x: number; z: number } | null = null,
     chaseTarget: { x: number; z: number; vx?: number; vz?: number } | null = null,
   ): void {
-    // Snapshot the pre-step pose so render() can interpolate up to it.
-    for (const c of this.cars) {
-      c.px = c.x;
-      c.pz = c.z;
-      c.ph = c.heading;
-    }
-
-    if (this.playerIndex !== null && input) {
-      this.steer = input.steer;
-      const pc = this.cars[this.playerIndex];
-      const next = stepVehicle(pc, input, DEFAULT_VEHICLE, dt);
-      pc.x = next.x;
-      pc.z = next.z;
-      pc.heading = next.heading;
-      pc.vx = next.vx;
-      pc.vz = next.vz;
-    }
-
-    for (let i = 0; i < this.cars.length; i++) {
-      if (i === this.playerIndex) continue;
-      const car = this.cars[i];
-      if (!car.active) continue;
-      if (car.role === 'ai') this.driveAi(car, city, dt, pedestrian);
-      else if (car.role === 'police') this.drivePolice(car, city, dt, chaseTarget);
-      else this.coast(car, dt);
-    }
-
-    this.collide(city);
-
-    // A car under half health trails smoke, thicker the closer it is to wrecking.
-    for (const car of this.cars) {
-      if (!car.active || car.health >= SMOKE_HEALTH) continue;
-      this.smoke.emit(car.x, car.z, 1 - car.health / SMOKE_HEALTH, dt);
-    }
-    this.smoke.update(dt);
-    this.debris.update(dt);
+    this.curCity = city;
+    this.curInput = input;
+    this.curPedestrian = pedestrian;
+    this.curChase = chaseTarget;
+    this.world.update(dt); // runs simStep (below)
 
     if (this.playerIndex !== null) {
       const c = this.cars[this.playerIndex];
@@ -222,18 +210,72 @@ export class Vehicles {
     }
   }
 
-  /** Position meshes, interpolating between the previous and current step. */
+  /**
+   * Update system: one ordered pass over the car entities — snapshot prev pose,
+   * integrate the player, drive everyone else, resolve collisions, emit smoke.
+   * Per-car loops iterate query(Vehicle); the collision pass and player identity
+   * stay index-based (`this.cars`/`playerIndex`) since they're pair/index work.
+   */
+  private simStep(w: World, dt: number): void {
+    const city = this.curCity!;
+    const playerCar = this.playerIndex !== null ? this.cars[this.playerIndex] : null;
+
+    // Snapshot the pre-step pose so render() can interpolate up to it.
+    for (const e of w.query(Vehicle)) {
+      const c = w.get(e, Vehicle)!;
+      c.px = c.x;
+      c.pz = c.z;
+      c.ph = c.heading;
+    }
+
+    if (playerCar && this.curInput) {
+      this.steer = this.curInput.steer;
+      const next = stepVehicle(playerCar, this.curInput, DEFAULT_VEHICLE, dt);
+      playerCar.x = next.x;
+      playerCar.z = next.z;
+      playerCar.heading = next.heading;
+      playerCar.vx = next.vx;
+      playerCar.vz = next.vz;
+    }
+
+    for (const e of w.query(Vehicle)) {
+      const car = w.get(e, Vehicle)!;
+      if (car === playerCar || !car.active) continue;
+      if (car.role === 'ai') this.driveAi(car, city, dt, this.curPedestrian);
+      else if (car.role === 'police') this.drivePolice(car, city, dt, this.curChase);
+      else this.coast(car, dt);
+    }
+
+    this.collide(city);
+
+    // A car under half health trails smoke, thicker the closer it is to wrecking.
+    for (const e of w.query(Vehicle)) {
+      const car = w.get(e, Vehicle)!;
+      if (!car.active || car.health >= SMOKE_HEALTH) continue;
+      this.smoke.emit(car.x, car.z, 1 - car.health / SMOKE_HEALTH, dt);
+    }
+    this.smoke.update(dt);
+    this.debris.update(dt);
+  }
+
+  /** Per-frame presentation; the world's render stage interpolates the cars. */
   render(alpha: number): void {
     this.debris.render(alpha);
+    this.world.render(alpha);
+  }
+
+  /** Render system: position each car mesh, interpolated between physics steps. */
+  private renderCars(w: World, alpha: number): void {
     this.flash++;
     const blue = Math.floor(this.flash / 16) % 2 === 0;
-    for (let i = 0; i < this.cars.length; i++) {
-      const c = this.cars[i];
+    const playerCar = this.playerIndex !== null ? this.cars[this.playerIndex] : null;
+    for (const e of w.query(Vehicle)) {
+      const c = w.get(e, Vehicle)!;
       if (!c.active) continue;
       c.group.position.set(lerp(c.px, c.x, alpha), 0, lerp(c.pz, c.z, alpha));
       c.group.rotation.y = angleLerp(c.ph, c.heading, alpha);
-      if (i === this.playerIndex) {
-        for (const w of c.steerWheels) w.rotation.y = this.steer * 0.5;
+      if (c === playerCar) {
+        for (const wheel of c.steerWheels) wheel.rotation.y = this.steer * 0.5;
       }
       if (c.lightMat) c.lightMat.emissive.setHex(blue ? 0x2030ff : 0xff2030);
     }
