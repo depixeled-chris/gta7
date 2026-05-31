@@ -11,6 +11,7 @@ import {
   starsFromHeat,
   leadTime,
   pursuitSpeed,
+  daylightFactor,
   engineToneHz,
 } from './math';
 
@@ -118,6 +119,23 @@ describe('pursuitSpeed', () => {
   });
   it('never exceeds the cap, however far the target runs', () => {
     expect(pursuitSpeed(10000, 30, 82, 0.5)).toBe(82);
+  });
+});
+
+describe('daylightFactor', () => {
+  it('is dark at midnight and around dawn/dusk, bright at noon', () => {
+    expect(daylightFactor(0)).toBeCloseTo(0, 6); // midnight
+    expect(daylightFactor(0.25)).toBeCloseTo(0, 6); // dawn
+    expect(daylightFactor(0.5)).toBeCloseTo(1, 6); // noon
+    expect(daylightFactor(0.75)).toBeCloseTo(0, 6); // dusk
+  });
+  it('clamps the night half to 0 (never negative) and stays within [0,1]', () => {
+    for (let t = 0; t < 1; t += 0.01) {
+      const d = daylightFactor(t);
+      expect(d).toBeGreaterThanOrEqual(0);
+      expect(d).toBeLessThanOrEqual(1);
+    }
+    expect(daylightFactor(0.9)).toBe(0); // deep night, clamped
   });
 });
 

@@ -42,6 +42,13 @@ export const pursuitSpeed = (gap: number, base: number, max: number, gain: numbe
   Math.min(max, base + Math.max(0, gap) * gain);
 
 /**
+ * Daylight factor (0 = full night, 1 = noon) for a time-of-day in [0,1) where
+ * 0 is midnight. A clamped sine: dark before dawn (0.25) and after dusk (0.75),
+ * peaking at noon (0.5). Pure, so the day/night curve is testable.
+ */
+export const daylightFactor = (t: number): number => Math.max(0, Math.sin((t - 0.25) * Math.PI * 2));
+
+/**
  * Engine note frequency for a faked automatic gearbox. Normalized speed (0–1)
  * is split into `gears`; within each gear the pitch ramps idle→idle+span, then
  * drops back to idle at the upshift — the classic rising-then-dropping engine

@@ -598,6 +598,13 @@ try {
   });
   check('cars have varied body shapes', shapes.length > 1, `shapes=${shapes.join(',')}`);
 
+  // --- 15. Day/night cycle advances over time.
+  await reset();
+  const t0 = await page.evaluate(() => window.__game.timeOfDay);
+  await page.waitForTimeout(500);
+  const t1 = await page.evaluate(() => window.__game.timeOfDay);
+  check('day/night cycle advances', t1 > t0, `timeOfDay ${t0.toFixed(4)} -> ${t1.toFixed(4)}`);
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();

@@ -30,6 +30,9 @@ const ENGINE_HEAR = 28; // on foot, how far a parked car's idle is audible
 const STEP_DISTANCE = 1.7; // metres of travel between footstep sounds
 let footAccum = 0;
 
+const DAY_LENGTH = 480; // seconds for a full day/night cycle
+let timeOfDay = 0; // [0,1), 0 = midnight (the original night look)
+
 const container = document.getElementById('app')!;
 const touch = isTouchDevice();
 const city = generateCity(DEFAULT_CITY);
@@ -313,6 +316,7 @@ function flushCarWrecks(): void {
 
 function update(dt: number): void {
   player.savePrev();
+  timeOfDay = (timeOfDay + dt / DAY_LENGTH) % 1;
 
   if (wasted || busted) {
     if (wasted) wastedTimer -= dt;
@@ -449,6 +453,7 @@ function render(alpha: number, frameDt: number): void {
     if (radio) radio.updateProximity(false, dist);
   }
 
+  env.setTimeOfDay(timeOfDay);
   env.render();
 
   // Perf telemetry (watched in the smoke run; see performance-vigilance memory).
@@ -481,6 +486,7 @@ declare global {
       readonly radioLabel: string;
       readonly wanted: number;
       readonly police: number;
+      readonly timeOfDay: number;
       readonly perf: Perf;
       vehicles: Vehicles;
       player: Player;
@@ -516,6 +522,9 @@ window.__game = {
   },
   get police() {
     return vehicles.activePoliceCount();
+  },
+  get timeOfDay() {
+    return timeOfDay;
   },
   get perf() {
     return perf;

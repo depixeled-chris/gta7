@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { daylightFactor } from '../core/math';
 import type { City } from '../world/City';
 
 /**
@@ -11,10 +12,27 @@ export interface SceneQuality {
   shadowMapSize?: number; // directional shadow resolution
 }
 
+// Night (t=0, the original look) ↔ day palette, lerped by the daylight factor.
+const NIGHT = {
+  sky: 0x141a2e,
+  ambient: { color: 0x35406a, intensity: 0.6 },
+  hemiSky: 0x3a4a7a,
+  sun: { color: 0xbcd0ff, intensity: 1.5 },
+};
+const DAY = {
+  sky: 0x9ec3e6,
+  ambient: { color: 0x9fb3d0, intensity: 0.95 },
+  hemiSky: 0x87b5e0,
+  sun: { color: 0xfff4e0, intensity: 2.6 },
+};
+
 export class SceneEnv {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
+  private ambient!: THREE.AmbientLight;
+  private hemi!: THREE.HemisphereLight;
+  private sun!: THREE.DirectionalLight;
 
   constructor(container: HTMLElement, city: City, quality: SceneQuality = {}) {
     const maxPixelRatio = quality.maxPixelRatio ?? 2;
@@ -51,25 +69,50 @@ export class SceneEnv {
   }
 
   private addLights(city: City, shadowMapSize: number): void {
-    this.scene.add(new THREE.AmbientLight(0x35406a, 0.6));
+    this.ambient = new THREE.AmbientLight(NIGHT.ambient.color, NIGHT.ambient.intensity);
+    this.scene.add(this.ambient);
 
-    const hemi = new THREE.HemisphereLight(0x3a4a7a, 0x0a0a12, 0.7);
-    this.scene.add(hemi);
+    this.hemi = new THREE.HemisphereLight(NIGHT.hemiSky, 0x0a0a12, 0.7);
+    this.scene.add(this.hemi);
 
-    const moon = new THREE.DirectionalLight(0xbcd0ff, 1.5);
-    moon.position.set(city.half * 0.6, city.half * 1.2, city.half * 0.4);
-    moon.castShadow = true;
-    moon.shadow.mapSize.set(shadowMapSize, shadowMapSize);
-    const cam = moon.shadow.camera;
+    const sun = new THREE.DirectionalLight(NIGHT.sun.color, NIGHT.sun.intensity);
+    sun.position.set(city.half * 0.6, city.half * 1.2, city.half * 0.4);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
+    const cam = sun.shadow.camera;
     cam.left = -city.half;
     cam.right = city.half;
     cam.top = city.half;
     cam.bottom = -city.half;
     cam.near = 1;
     cam.far = city.extent * 2.5;
-    moon.shadow.bias = -0.0006;
-    this.scene.add(moon);
-    this.scene.add(moon.target);
+    sun.shadow.bias = -0.0006;
+    this.scene.add(sun);
+    this.scene.add(sun.target);
+    this.sun = sun;
+  }
+
+  /**
+   * Drive the day/night look from a time-of-day in [0,1) (0 = midnight). Lerps
+   * sky/fog colour and light colour+intensity between the night and day
+   * palettes by a daylight factor (0 at night, 1 at noon). The sun's position
+   * is left fixed so the shadow camera stays valid — colour/intensity carry the
+   * effect. At t≈0 it reproduces the original night look exactly.
+   */
+  setTimeOfDay(t: number): void {
+    const d = daylightFactor(t); // 0 night → 1 noon
+    const mix = (a: number, b: number): THREE.Color => new THREE.Color(a).lerp(new THREE.Color(b), d);
+    const lerpN = (a: number, b: number): number => a + (b - a) * d;
+
+    const sky = mix(NIGHT.sky, DAY.sky);
+    (this.scene.background as THREE.Color).copy(sky);
+    (this.scene.fog as THREE.Fog).color.copy(sky);
+
+    this.ambient.color.copy(mix(NIGHT.ambient.color, DAY.ambient.color));
+    this.ambient.intensity = lerpN(NIGHT.ambient.intensity, DAY.ambient.intensity);
+    this.hemi.color.copy(mix(NIGHT.hemiSky, DAY.hemiSky));
+    this.sun.color.copy(mix(NIGHT.sun.color, DAY.sun.color));
+    this.sun.intensity = lerpN(NIGHT.sun.intensity, DAY.sun.intensity);
   }
 
   private addGround(city: City): void {
