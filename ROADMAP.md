@@ -29,7 +29,7 @@ Keep _Shipped_ compact (one line per item; collapse old detail). When in doubt, 
 ---
 
 ## 🟡 In progress / next up (top = do first)
-- [R003] 🔬 Car profiles + mass — @maintainer · data-driven `CarProfile` (sports/truck/interceptor); see Researched. Damage model (R002) is in, so per-car mass/health now has a home.
+- [R003] ➡️ Superseded by **R026** — car profiles now want hand-tuned named makes/models, not generic categories.
 - [R004] 🔵 Proper car-car collision / no clipping — @maintainer · cars pass through each other at intersections; AI yielding (grid + damage now in place)
 
 ## 🟢 World-gen epic (🔬 RESEARCHED — foundation ready)
@@ -48,9 +48,15 @@ Phases (each shippable, test-backed; top = do first):
 - [R009] 🔬 P7 — Perf hardening: merged geometry + InstancedMesh + LOD + dispose; Worker offload if gen hitches; WASM only if triggers met
 
 ## 🔵 Queued (triaged, not started)
-- [R005] 🔵 Street & building variety — @maintainer · more shapes/colours/props/street dressing
+*(R005 & R007 now live in the World-gen epic above.)*
+- [R024] 🔵 Better prop geometry — @maintainer · trees = trunk + foliage, hydrants = body+cap+nozzles, benches = seat+back+legs; keep them merged so still one InstancedMesh per type. *(separate task; current cone/box props are too primitive)*
+- [R025] 🔵 Building texture/colour variety — @maintainer · keep the procedural facade gen but add per-building hue/colour variation so blocks read as more varied
+- [R026] 🔵 Named car makes/models + tuned profiles — @maintainer · NOT procedural; hand-tuned `CarProfile`s with GTA-style manufacturer+model names, categories (sports / general / trucks / city). Supersedes R003. Discussable by name.
+- [R027] 🔵 Non-grid street layout — @maintainer · streets are still a pure grid; want warped/curved roads, varied block sizes, arterials/diagonals (ties P5 road research)
+- [R028] 🔵 Actors collide with vehicles — @maintainer · the on-foot player and pedestrians clip through parked/other cars; resolve actors against nearby car circles, not just buildings
+- [R029] 🔵 Day/night cycle — @maintainer · animate sun/moon + lighting/fog over time; emissive night look is the current fixed state
 - [R006] 🔵 In-game options menu — @maintainer · volume sliders (radio vs SFX), maybe quality toggle
-- [R007] 🔬 Chunked / streaming world — @maintainer · deterministic `generateChunk(cx,cz)` then load/unload; see Researched
+- [R030] 🔵 Architecture review — separation of concerns / ECS — @maintainer · evaluate an ECS (Bevy-style entities+components+systems) vs a lighter systems/components refactor; decide BEFORE the big streaming rewrite churns Vehicles/Pedestrians/Scene/main. Produce a design doc + plan.
 
 ## 🔬 Researched — ready to implement
 Full write-ups in [`docs/research/`](docs/research/).
