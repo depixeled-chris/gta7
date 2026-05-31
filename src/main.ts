@@ -282,7 +282,9 @@ function updateWanted(dt: number): void {
 
 /** While on foot, take damage from cars that hit us; trigger WASTED at zero. */
 function checkPedestrianDamage(): void {
-  const hit = vehicles.pedestrianImpact(player.x, player.z);
+  // Exclude police: a cop catching you on foot triggers BUSTED (arrest), it
+  // doesn't run you over. Ordinary traffic can still flatten you.
+  const hit = vehicles.pedestrianImpact(player.x, player.z, false, false);
   const contact = !!hit && hit.speed > HIT_SPEED;
   if (contact && !pedContact) {
     health -= hit!.speed * DAMAGE_PER_SPEED;

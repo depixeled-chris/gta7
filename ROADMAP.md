@@ -84,5 +84,7 @@ crash damage softened (no single hit totals an intact car) + louder footsteps ·
 [R021] damaged cars trail **smoke particles** (billboard sprites, not geometry), thicker as they near wrecking ·
 [R022] touch buttons use **lucide** SVG icons (no more "F" glyph) ·
 [R019] fullscreen toggle button + PWA/home-screen path & safe-area insets (iPhone Safari has no element-fullscreen API → Add-to-Home-Screen is the true-fullscreen route) ·
-[R023] on-foot **punch** that gibs the pedestrian in front of you into pixels (scores + raises heat) — Space / touch fist button.
+[R023] on-foot **punch** that gibs the pedestrian in front of you into pixels (scores + raises heat) — Space / touch fist button ·
+street **props** (trees/hydrants/benches, biome-weighted, instanced) + facade UV fix (no half-cut windows) ·
+fix: police **arrest** the on-foot player (BUSTED) instead of running them over — a punch-summoned cop near the map edge was spawning on you and WASTED-ing you with no apparent cause.
 Requester credits: [README](README.md#requested-by-the-internet).

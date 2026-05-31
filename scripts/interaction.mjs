@@ -569,6 +569,27 @@ try {
     `gibbed=${gibbed}, count ${punchSetup.before} -> ${punched}`,
   );
 
+  // --- 13d. Police don't run the on-foot player over (they arrest = BUSTED).
+  await reset();
+  await page.keyboard.press('KeyF'); // on foot
+  await page.waitForTimeout(200);
+  const copImpact = await page.evaluate(() => {
+    const g = window.__game;
+    const v = g.vehicles;
+    v.setWanted(1, { x: g.player.x, z: g.player.z }, g.city); // activate a cruiser
+    const cop = v.cars.find((c) => c.role === 'police' && c.active);
+    cop.x = g.player.x; cop.z = g.player.z; cop.vx = 30; cop.vz = 0; // fast, right on the player
+    return {
+      countsAsImpact: !!v.pedestrianImpact(g.player.x, g.player.z, false, true),
+      hurtsOnFoot: !!v.pedestrianImpact(g.player.x, g.player.z, false, false),
+    };
+  });
+  check(
+    'police are excluded from on-foot run-over damage (arrest, not splatter)',
+    copImpact.countsAsImpact === true && copImpact.hurtsOnFoot === false,
+    JSON.stringify(copImpact),
+  );
+
   // --- 14. Cars come in varied body shapes (visual variety).
   await reset();
   const shapes = await page.evaluate(() => {

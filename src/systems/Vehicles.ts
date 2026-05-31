@@ -290,15 +290,18 @@ export class Vehicles {
   }
 
   /**
-   * The fastest car overlapping a point at (px,pz), or null. When `includePlayer`
-   * is false the player's own car is skipped (used for damage to the on-foot
-   * player); when true it counts too (used for running pedestrians over).
+   * The fastest car overlapping a point at (px,pz), or null. `includePlayer`
+   * false skips the player's own car (used for damage to the on-foot player);
+   * true counts it (used for running pedestrians over). `includePolice` false
+   * skips cruisers — the on-foot player is ARRESTED (BUSTED) by police, not run
+   * over by them, so a cop reaching you on foot shouldn't just splatter you.
    */
-  pedestrianImpact(px: number, pz: number, includePlayer = false): PedImpact | null {
+  pedestrianImpact(px: number, pz: number, includePlayer = false, includePolice = true): PedImpact | null {
     let best: PedImpact | null = null;
     for (let i = 0; i < this.cars.length; i++) {
       if (!includePlayer && i === this.playerIndex) continue;
       const c = this.cars[i];
+      if (!includePolice && c.role === 'police') continue;
       const dist = Math.hypot(c.x - px, c.z - pz);
       if (dist >= PED_REACH) continue;
       const speed = Math.hypot(c.vx, c.vz);
