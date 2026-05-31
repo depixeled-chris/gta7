@@ -48,6 +48,14 @@ try {
     };
   });
 
+  // Perf telemetry — logged (not asserted) so regressions are visible across runs.
+  const perf = await page.evaluate(() => window.__game?.perf ?? null);
+  if (perf) {
+    console.log(
+      `PERF  draws=${perf.drawCalls}  tris=${perf.triangles}  geom=${perf.geometries}  tex=${perf.textures}  frame=${perf.frameMs.toFixed(1)}ms`,
+    );
+  }
+
   const shot = await page.screenshot();
   writeFileSync(OUT, shot);
   const png = PNG.sync.read(shot);

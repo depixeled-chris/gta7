@@ -450,7 +450,24 @@ function render(alpha: number, frameDt: number): void {
   }
 
   env.render();
+
+  // Perf telemetry (watched in the smoke run; see performance-vigilance memory).
+  if (frameDt > 0) perf.frameMs = perf.frameMs === 0 ? frameDt * 1000 : perf.frameMs * 0.9 + frameDt * 1000 * 0.1;
+  const info = env.renderer.info;
+  perf.drawCalls = info.render.calls;
+  perf.triangles = info.render.triangles;
+  perf.geometries = info.memory.geometries;
+  perf.textures = info.memory.textures;
 }
+
+interface Perf {
+  frameMs: number;
+  drawCalls: number;
+  triangles: number;
+  geometries: number;
+  textures: number;
+}
+const perf: Perf = { frameMs: 0, drawCalls: 0, triangles: 0, geometries: 0, textures: 0 };
 
 declare global {
   interface Window {
@@ -464,6 +481,7 @@ declare global {
       readonly radioLabel: string;
       readonly wanted: number;
       readonly police: number;
+      readonly perf: Perf;
       vehicles: Vehicles;
       player: Player;
       peds: Pedestrians;
@@ -498,6 +516,9 @@ window.__game = {
   },
   get police() {
     return vehicles.activePoliceCount();
+  },
+  get perf() {
+    return perf;
   },
   vehicles,
   player,
