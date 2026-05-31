@@ -12,6 +12,7 @@ import {
   leadTime,
   pursuitSpeed,
   daylightFactor,
+  sunPosition,
   engineToneHz,
 } from './math';
 
@@ -136,6 +137,21 @@ describe('daylightFactor', () => {
       expect(d).toBeLessThanOrEqual(1);
     }
     expect(daylightFactor(0.9)).toBe(0); // deep night, clamped
+  });
+});
+
+describe('sunPosition', () => {
+  const len = (p: { x: number; y: number; z: number }): number => Math.hypot(p.x, p.y, p.z);
+  it('rises in the east, peaks overhead at noon, sets in the west', () => {
+    expect(sunPosition(0.25).x).toBeGreaterThan(0); // dawn: east
+    expect(sunPosition(0.75).x).toBeLessThan(0); // dusk: west
+    expect(sunPosition(0.5).y).toBeGreaterThan(sunPosition(0.25).y); // higher at noon than dawn
+  });
+  it('never drops below the horizon (light stays above ground)', () => {
+    for (let t = 0; t < 1; t += 0.02) expect(sunPosition(t).y).toBeGreaterThan(0);
+  });
+  it('returns a unit vector', () => {
+    for (const t of [0, 0.25, 0.5, 0.75, 0.9]) expect(len(sunPosition(t))).toBeCloseTo(1, 6);
   });
 });
 

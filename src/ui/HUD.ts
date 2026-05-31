@@ -23,6 +23,7 @@ export class HUD {
   private readonly radioEl: HTMLElement;
   private readonly carEl: HTMLElement;
   private readonly wantedEl: HTMLElement;
+  private readonly clockEl: HTMLElement;
 
   constructor(container: HTMLElement, private readonly city: City, touch = false) {
     this.toWorld = MAP_SIZE / city.extent;
@@ -83,6 +84,17 @@ export class HUD {
       'opacity:.8;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
     this.radioEl.textContent = '📻 OFF';
     root.appendChild(this.radioEl);
+
+    // Time-of-day clock. On touch the top-right is the speedo, so it sits on the
+    // left under the wanted stars; on desktop it takes the free top-right corner.
+    this.clockEl = document.createElement('div');
+    this.clockEl.style.cssText =
+      (touch
+        ? 'position:absolute;left:20px;top:100px;'
+        : 'position:absolute;right:20px;top:16px;') +
+      'font-size:15px;font-weight:700;opacity:.85;padding:4px 10px;' +
+      'background:rgba(10,14,24,.5);border-radius:6px;backdrop-filter:blur(4px);';
+    root.appendChild(this.clockEl);
 
     // Current car make/model, above the speedometer (driving only).
     this.carEl = document.createElement('div');
@@ -224,6 +236,14 @@ export class HUD {
 
   setRadio(label: string): void {
     this.radioEl.textContent = label;
+  }
+
+  /** Time-of-day clock from `t` in [0,1) (0 = midnight) → 🕐 HH:MM (24h). */
+  setClock(t: number): void {
+    const mins = Math.floor(t * 24 * 60) % (24 * 60);
+    const hh = Math.floor(mins / 60);
+    const mm = mins % 60;
+    this.clockEl.textContent = `🕐 ${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
   }
 
   setWanted(stars: number, cooling = false): void {

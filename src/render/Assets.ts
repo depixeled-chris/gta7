@@ -128,6 +128,24 @@ export class CityAssets {
     return mesh;
   }
 
+  /**
+   * Day/night: lit windows and lamp heads shouldn't glow in daylight, so scale
+   * their emissive by the daylight factor (`d`: 0 night → 1 noon). By day the
+   * facades also turn glassier (lower roughness, higher metalness) so windows
+   * read as reflective glass instead of dark holes.
+   */
+  setDaylight(d: number): void {
+    const lit = 1 - 0.92 * d; // full glow at night → nearly off at noon
+    for (const m of this.sideCache.values()) {
+      const sm = m as THREE.MeshStandardMaterial;
+      sm.emissiveIntensity = 1.1 * lit;
+      sm.roughness = 0.75 - 0.5 * d;
+      sm.metalness = 0.05 + 0.5 * d;
+    }
+    this.headMat.emissiveIntensity = 3 * lit;
+    (this.poolMat as THREE.MeshBasicMaterial).opacity = 0.9 * lit;
+  }
+
   private sideMaterial(facade: THREE.CanvasTexture, tint: number): THREE.Material {
     const key = `${facade.uuid}:${tint}`;
     let mat = this.sideCache.get(key);

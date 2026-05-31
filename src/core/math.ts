@@ -49,6 +49,23 @@ export const pursuitSpeed = (gap: number, base: number, max: number, gain: numbe
 export const daylightFactor = (t: number): number => Math.max(0, Math.sin((t - 0.25) * Math.PI * 2));
 
 /**
+ * Unit direction toward the sun for time-of-day `t` (0 = midnight). The sun
+ * rises in the east (+X) at t=0.25, is overhead at noon (t=0.5), and sets in
+ * the west (−X) at t=0.75 — so shadows sweep across the city through the day.
+ * Elevation is floored just above the horizon so the directional light never
+ * drops underground (which would invert shadows); a constant south tilt keeps
+ * shadows off the exact grid axes. Pure → the arc is unit-tested.
+ */
+export const sunPosition = (t: number): { x: number; y: number; z: number } => {
+  const angle = (t - 0.25) * Math.PI * 2;
+  const x = Math.cos(angle);
+  const y = Math.max(0.12, Math.sin(angle));
+  const z = 0.35;
+  const len = Math.hypot(x, y, z);
+  return { x: x / len, y: y / len, z: z / len };
+};
+
+/**
  * Engine note frequency for a faked automatic gearbox. Normalized speed (0–1)
  * is split into `gears`; within each gear the pitch ramps idle→idle+span, then
  * drops back to idle at the upshift — the classic rising-then-dropping engine

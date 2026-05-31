@@ -12,7 +12,7 @@ import { HUD, type Mode } from './ui/HUD';
 import { showSplash } from './ui/Splash';
 import { Controls } from './core/Controls';
 import { GameLoop } from './core/GameLoop';
-import { lerp, angleLerp, starsFromHeat } from './core/math';
+import { lerp, angleLerp, starsFromHeat, daylightFactor } from './core/math';
 import { Radio } from './audio/Radio';
 import { Sfx } from './audio/Sfx';
 import { toMph, type VehicleInput } from './vehicles/VehicleModel';
@@ -463,6 +463,7 @@ function render(alpha: number, frameDt: number): void {
   hud.setCarName(mode === 'driving' ? vehicles.playerCarName() : null);
   hud.setRadio(radio ? radio.label() : '📻 OFF');
   hud.setWanted(stars, wantedCooling);
+  hud.setClock(timeOfDay);
   hud.setBusted(busted);
 
   const driving = mode === 'driving';
@@ -483,6 +484,7 @@ function render(alpha: number, frameDt: number): void {
   }
 
   env.setTimeOfDay(timeOfDay);
+  assets.setDaylight(daylightFactor(timeOfDay)); // window/lamp lights off + glassy by day
   env.render();
 
   // Perf telemetry (watched in the smoke run; see performance-vigilance memory).

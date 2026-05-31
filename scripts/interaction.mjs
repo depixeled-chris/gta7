@@ -100,14 +100,13 @@ try {
     const g = window.__game;
     const cars = g.vehicles.cars;
     const j = cars.findIndex((c, i) => i !== g.vehicles.playerIndex && c.role === 'ai');
-    // Freeze ALL traffic so no other car drifts within reach before we press F
-    // (otherwise the nearest enterable car — and thus which one we board — is a
-    // race against the moving sim).
-    for (const c of cars) {
-      if (c.role === 'ai') { c.role = 'parked'; c.lane = null; }
-      c.vx = 0; c.vz = 0;
-    }
+    // Banish every other car far away so the only car within reach is our target
+    // — which one is "nearest" is otherwise a race against the moving sim.
+    cars.forEach((c, i) => {
+      if (i !== j) { c.role = 'parked'; c.lane = null; c.x = 9000 + i; c.z = 9000; c.vx = c.vz = 0; }
+    });
     const c = cars[j];
+    c.role = 'parked'; c.lane = null; c.vx = c.vz = 0; // stop the target too
     g.player.x = c.x - 2.6; g.player.z = c.z; // beside it: within reach, clear of push-out
     return { j, wasFoot: g.mode === 'foot' };
   });
@@ -177,17 +176,16 @@ try {
     const g = window.__game;
     const v = g.vehicles;
     const cars = v.cars;
-    // Freeze ALL traffic so no other car drifts within reach before we press F.
-    for (const c of cars) {
-      if (c.role === 'ai') { c.role = 'parked'; c.lane = null; }
-      c.vx = 0; c.vz = 0;
-    }
-    // A parked car away from the spawn point (i.e. a curbside one, not the car we just left).
-    let j = -1;
-    for (let i = 0; i < cars.length; i++) {
-      const c = cars[i];
-      if (c.role === 'parked' && Math.hypot(c.x - g.city.center.x, c.z - g.city.center.z) > 12) { j = i; break; }
-    }
+    // Pick a real parked (curbside) car, then BANISH every other car far away so
+    // the only car within reach is our target — no race over which one is nearest
+    // (cars drift to varying positions depending on how long the exit poll took).
+    const j = cars.findIndex(
+      (c, i) => i !== v.playerIndex && c.role === 'parked' &&
+        Math.hypot(c.x - g.city.center.x, c.z - g.city.center.z) > 12,
+    );
+    cars.forEach((c, i) => {
+      if (i !== j) { c.role = 'parked'; c.lane = null; c.x = 9000 + i; c.z = 9000; c.vx = c.vz = 0; }
+    });
     g.player.x = cars[j].x - 2.6; // beside it: within reach, clear of push-out
     g.player.z = cars[j].z;
     return { j };
@@ -650,12 +648,12 @@ try {
     return { before: g.runOverCount, mode: g.mode };
   });
   let gibbed = false;
-  for (let i = 0; i < 6 && !gibbed; i++) {
+  for (let i = 0; i < 20 && !gibbed; i++) {
     await page.evaluate(() => {
       const g = window.__game;
       const ped = g.peds.peds[0];
-      if (ped.state === 'walk') { // re-pin in front (a walking ped drifts)
-        ped.y = 0; ped.tumble = 0; ped.scared = false; ped.group.visible = true;
+      if (ped.state !== 'gibbed') { // keep it pinned right in front until a punch lands
+        ped.state = 'walk'; ped.y = 0; ped.tumble = 0; ped.scared = false; ped.group.visible = true;
         ped.x = g.player.x + 1.3; ped.z = g.player.z;
       }
     });

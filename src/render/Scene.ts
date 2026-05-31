@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { daylightFactor } from '../core/math';
+import { daylightFactor, sunPosition } from '../core/math';
+import { makeGlowTexture } from './textures';
 import type { City } from '../world/City';
 
 /**
@@ -33,6 +34,8 @@ export class SceneEnv {
   private ambient!: THREE.AmbientLight;
   private hemi!: THREE.HemisphereLight;
   private sun!: THREE.DirectionalLight;
+  private sunDisc!: THREE.Sprite;
+  private sunRadius = 0;
 
   constructor(container: HTMLElement, city: City, quality: SceneQuality = {}) {
     const maxPixelRatio = quality.maxPixelRatio ?? 2;
@@ -88,16 +91,32 @@ export class SceneEnv {
     cam.far = city.extent * 2.5;
     sun.shadow.bias = -0.0006;
     this.scene.add(sun);
-    this.scene.add(sun.target);
+    this.scene.add(sun.target); // target stays at origin; moving the light sweeps shadows
     this.sun = sun;
+
+    // A visible sun/moon disc that rides the same arc as the directional light.
+    this.sunRadius = city.extent * 1.1; // inside the camera far plane (extent*1.5)
+    const disc = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: makeGlowTexture(),
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        fog: false,
+      }),
+    );
+    disc.scale.setScalar(city.extent * 0.22);
+    this.scene.add(disc);
+    this.sunDisc = disc;
+    this.setTimeOfDay(0); // place everything for the initial (midnight) look
   }
 
   /**
    * Drive the day/night look from a time-of-day in [0,1) (0 = midnight). Lerps
    * sky/fog colour and light colour+intensity between the night and day
-   * palettes by a daylight factor (0 at night, 1 at noon). The sun's position
-   * is left fixed so the shadow camera stays valid — colour/intensity carry the
-   * effect. At t≈0 it reproduces the original night look exactly.
+   * palettes by a daylight factor (0 at night, 1 at noon), and rides the sun
+   * (the shadow-casting directional light + a visible disc) along an east→
+   * overhead→west arc so shadows sweep across the city through the day.
    */
   setTimeOfDay(t: number): void {
     const d = daylightFactor(t); // 0 night → 1 noon
@@ -113,6 +132,14 @@ export class SceneEnv {
     this.hemi.color.copy(mix(NIGHT.hemiSky, DAY.hemiSky));
     this.sun.color.copy(mix(NIGHT.sun.color, DAY.sun.color));
     this.sun.intensity = lerpN(NIGHT.sun.intensity, DAY.sun.intensity);
+
+    // Sweep the light + disc along the day's arc (target stays at the origin).
+    const dir = sunPosition(t);
+    this.sun.position.set(dir.x * this.sunRadius, dir.y * this.sunRadius, dir.z * this.sunRadius);
+    this.sunDisc.position.copy(this.sun.position);
+    // Warm sun by day, pale moon by night; never fully invisible.
+    this.sunDisc.material.color.copy(mix(0xaec6ff, 0xfff1c4));
+    this.sunDisc.material.opacity = 0.45 + 0.4 * d;
   }
 
   private addGround(city: City): void {
