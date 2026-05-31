@@ -1,5 +1,6 @@
 import { clamp } from './math';
 import { Input } from './Input';
+import { GamepadInput, GP } from './gamepad';
 import { TouchControls } from '../ui/TouchControls';
 
 /**
@@ -14,6 +15,7 @@ import { TouchControls } from '../ui/TouchControls';
  */
 export class Controls {
   private readonly kb = new Input();
+  private readonly pad = new GamepadInput();
   private readonly touch?: TouchControls;
 
   constructor(touchRoot?: HTMLElement) {
@@ -25,43 +27,52 @@ export class Controls {
     let y = this.kb.axis(['KeyS', 'ArrowDown'], ['KeyW', 'ArrowUp']);
     if (this.touch) {
       const t = this.touch.stick();
-      x = clamp(x + t.x, -1, 1);
-      y = clamp(y + t.y, -1, 1);
+      x += t.x;
+      y += t.y;
     }
-    return { x, y };
+    const g = this.pad.move();
+    x += g.x;
+    y += g.y;
+    return { x: clamp(x, -1, 1), y: clamp(y, -1, 1) };
   }
 
   handbrake(): boolean {
-    return this.kb.isDown('Space') || (this.touch?.handbrake ?? false);
+    return this.kb.isDown('Space') || (this.touch?.handbrake ?? false) || this.pad.handbrake();
   }
 
   sprint(): boolean {
-    return this.kb.isDown('ShiftLeft') || this.kb.isDown('ShiftRight') || (this.touch?.sprint ?? false);
+    return (
+      this.kb.isDown('ShiftLeft') ||
+      this.kb.isDown('ShiftRight') ||
+      (this.touch?.sprint ?? false) ||
+      this.pad.sprint()
+    );
   }
 
   enterExitPressed(): boolean {
     const key = this.kb.wasPressed('KeyF') || this.kb.wasPressed('KeyE');
     const tap = this.touch?.consumeEnter() ?? false; // always consume, never short-circuit
-    return key || tap;
+    const btn = this.pad.wasPressed(GP.A);
+    return key || tap || btn;
   }
 
   resetPressed(): boolean {
     const key = this.kb.wasPressed('KeyR');
     const tap = this.touch?.consumeReset() ?? false;
-    return key || tap;
+    return key || tap || this.pad.wasPressed(GP.Y);
   }
 
   /** On-foot melee. Space (handbrake is driving-only, so it's free on foot). */
   punchPressed(): boolean {
     const key = this.kb.wasPressed('Space');
     const tap = this.touch?.consumePunch() ?? false;
-    return key || tap;
+    return key || tap || this.pad.wasPressed(GP.X);
   }
 
   /** Radio tuner step this frame: +1 next station, -1 previous, 0 none. */
   radioStep(): number {
-    const next = this.kb.wasPressed('BracketRight');
-    const prev = this.kb.wasPressed('BracketLeft');
+    const next = this.kb.wasPressed('BracketRight') || this.pad.wasPressed(GP.RB);
+    const prev = this.kb.wasPressed('BracketLeft') || this.pad.wasPressed(GP.LB);
     const tap = this.touch?.consumeRadio() ?? false; // touch button only goes forward
     if (next || tap) return 1;
     if (prev) return -1;
@@ -70,5 +81,6 @@ export class Controls {
 
   endFrame(): void {
     this.kb.endFrame();
+    this.pad.endFrame();
   }
 }

@@ -21,3 +21,4 @@ and reference it from the relevant `R###` item in [../../ROADMAP.md](../../ROADM
 | [perf-wasm-streaming.md](perf-wasm-streaming.md) | Rust/WASM ROI + chunked streaming world + spatial grid | ♻️ partial (grid shipped; streaming half → generative-world.md) | R001 / R007 / R009 |
 | [generative-world.md](generative-world.md) | Streamed deterministic world: noise biomes, highways, rivers+bridges, variety, perf/WASM order | 🔬 ready | R005 / R007 / R015–R018 (epic) |
 | [ecs-architecture.md](ecs-architecture.md) | Full-ECS target design + incremental, test-gated migration plan | 🔬 design approved | R030 |
+| [gamepad-support.md](gamepad-support.md) | Web Gamepad API: standard mapping, radial deadzone, polling, edge detection | 🔬 ready | R036 |
