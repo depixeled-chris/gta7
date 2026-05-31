@@ -607,6 +607,26 @@ export class Vehicles {
     return w;
   }
 
+  /**
+   * Push an on-foot actor's circle (player or pedestrian) out of any car it
+   * overlaps, so they don't clip through parked/standing vehicles. Cars are
+   * treated as static obstacles here (they don't get shoved by a pedestrian);
+   * fast cars still gib/shove via pedestrianImpact separately.
+   */
+  resolveActor(x: number, z: number, radius: number): { x: number; z: number } {
+    let rx = x;
+    let rz = z;
+    for (const c of this.cars) {
+      if (!c.active) continue;
+      const o = circleOverlap(rx, rz, c.x, c.z, radius + CAR_RADIUS);
+      if (o) {
+        rx += o.nx * o.depth;
+        rz += o.nz * o.depth;
+      }
+    }
+    return { x: rx, z: rz };
+  }
+
   /** Live smoke-particle count (debug/telemetry). */
   smokeParticles(): number {
     return this.smoke.activeCount();

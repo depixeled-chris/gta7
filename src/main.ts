@@ -220,6 +220,10 @@ function updateFoot(dt: number): void {
   const fixed = city.grid.resolve(player.x, player.z, FOOT_RADIUS);
   player.x = fixed.x;
   player.z = fixed.z;
+  // Don't walk through cars (parked or otherwise).
+  const offCar = vehicles.resolveActor(player.x, player.z, FOOT_RADIUS);
+  player.x = offCar.x;
+  player.z = offCar.z;
   clampToCity(player);
 }
 
@@ -306,6 +310,8 @@ function checkPedestrianDamage(): void {
 
 // Any car (including the one you're driving) moving fast enough flattens peds.
 const runOverQuery = (x: number, z: number) => vehicles.pedestrianImpact(x, z, true);
+// Pedestrians (like the player on foot) get pushed out of cars they'd clip.
+const resolveCars = (x: number, z: number, r: number) => vehicles.resolveActor(x, z, r);
 
 /** Sound the car wrecks from this step; a wrecked player car means WASTED. */
 function flushCarWrecks(): void {
@@ -323,7 +329,7 @@ function update(dt: number): void {
     else bustedTimer -= dt;
     vehicles.update(city, dt, null, null);
     flushCarWrecks();
-    peds.update(city, dt, runOverQuery, null);
+    peds.update(city, dt, runOverQuery, null, resolveCars);
     debris.update(dt); // shared pool, advanced once per frame
     if ((wasted && wastedTimer <= 0) || (busted && bustedTimer <= 0)) respawn();
     controls.endFrame();
@@ -371,7 +377,7 @@ function update(dt: number): void {
   updateBusted(dt);
   // Pedestrians fear the CAR only (not the player on foot): proximity, or a fast
   // car on a vector to hit them. Threat carries velocity for the vector trigger.
-  peds.update(city, dt, runOverQuery, mode === 'driving' ? chaseTarget() : null);
+  peds.update(city, dt, runOverQuery, mode === 'driving' ? chaseTarget() : null, resolveCars);
   debris.update(dt); // shared pool, advanced once per frame
   controls.endFrame();
 }
@@ -487,6 +493,7 @@ declare global {
       readonly wanted: number;
       readonly police: number;
       readonly timeOfDay: number;
+      readonly radioReady: boolean;
       readonly perf: Perf;
       vehicles: Vehicles;
       player: Player;
@@ -525,6 +532,9 @@ window.__game = {
   },
   get timeOfDay() {
     return timeOfDay;
+  },
+  get radioReady() {
+    return radio !== null; // manifest fetched + tuner built
   },
   get perf() {
     return perf;

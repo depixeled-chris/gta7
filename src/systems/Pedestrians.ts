@@ -38,6 +38,7 @@ type ImpactQuery = (
 ) => { speed: number; vx: number; vz: number; isPlayer: boolean } | null;
 
 type Threat = { x: number; z: number; vx: number; vz: number } | null | undefined;
+type ResolveCars = (x: number, z: number, radius: number) => { x: number; z: number };
 
 /** Each pedestrian is an entity carrying its `Ped` data as one component. */
 const Pedestrian = defineComponent<Ped>('Pedestrian');
@@ -78,6 +79,7 @@ export class Pedestrians {
   private curCity?: City;
   private curImpact?: ImpactQuery;
   private curThreat: Threat;
+  private curResolveCars?: ResolveCars;
 
   // Shares the one game World + the shared Debris pool; runs its passes directly.
   constructor(
@@ -109,10 +111,11 @@ export class Pedestrians {
     }
   }
 
-  update(city: City, dt: number, impactAt?: ImpactQuery, threat?: Threat): void {
+  update(city: City, dt: number, impactAt?: ImpactQuery, threat?: Threat, resolveCars?: ResolveCars): void {
     this.curCity = city;
     this.curImpact = impactAt;
     this.curThreat = threat;
+    this.curResolveCars = resolveCars;
     this.stepPeds(this.world, dt);
   }
 
@@ -189,6 +192,13 @@ export class Pedestrians {
       if (!ped.scared && (fixed.x !== ped.x || fixed.z !== ped.z)) ped.heading += Math.PI; // bounced off a wall
       ped.x = Math.max(-city.half, Math.min(city.half, fixed.x));
       ped.z = Math.max(-city.half, Math.min(city.half, fixed.z));
+
+      // Don't walk through cars (parked or standing); fast cars still gib below.
+      if (this.curResolveCars) {
+        const r = this.curResolveCars(ped.x, ped.z, RADIUS);
+        ped.x = r.x;
+        ped.z = r.z;
+      }
 
       const imp = impactAt?.(ped.x, ped.z);
       if (imp && imp.speed >= GIB_SPEED) this.gib(ped, imp);

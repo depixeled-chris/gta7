@@ -262,6 +262,7 @@ try {
 
   // --- 7. Radio: cycling the station with ] tunes off OFF to a station.
   await reset();
+  await page.waitForFunction(() => window.__game?.radioReady, { timeout: 5000 }); // manifest loaded
   const radioBefore = await page.evaluate(() => window.__game.radioLabel);
   await page.keyboard.press('BracketRight');
   await page.waitForTimeout(150);
@@ -366,6 +367,7 @@ try {
 
   // --- 10. Radio keeps playing after you get out of the car.
   await reset();
+  await page.waitForFunction(() => window.__game?.radioReady, { timeout: 5000 }); // manifest loaded
   await page.keyboard.press('KeyW'); // gesture: tune in the spawn car's radio
   await page.waitForTimeout(300);
   const inCar = await page.evaluate(() => window.__game.radioLabel);
@@ -597,6 +599,33 @@ try {
     return [...ids];
   });
   check('cars have varied body shapes', shapes.length > 1, `shapes=${shapes.join(',')}`);
+
+  // --- 14b. On foot, you can't clip through a parked car — you get pushed out.
+  await reset();
+  await page.keyboard.press('KeyF'); // on foot
+  await page.waitForTimeout(200);
+  const clip = await page.evaluate(() => {
+    const g = window.__game;
+    const v = g.vehicles;
+    const t = v.playerIndex === 0 ? 1 : 0;
+    const car = v.cars[t];
+    car.role = 'parked'; car.lane = null; car.vx = car.vz = 0;
+    car.x = g.player.x + 20; car.z = g.player.z; // a clear spot
+    // Drop the player right on top of the car.
+    g.player.x = car.x; g.player.z = car.z;
+    return { t };
+  });
+  await page.waitForTimeout(250); // a few frames of resolution
+  const pushed = await page.evaluate((t) => {
+    const g = window.__game;
+    const car = g.vehicles.cars[t];
+    return Math.hypot(g.player.x - car.x, g.player.z - car.z);
+  }, clip.t);
+  check(
+    'on foot you are pushed out of cars (no clipping)',
+    pushed >= 1.9, // outside CAR_RADIUS — not standing inside the car
+    `distance to car = ${pushed.toFixed(2)}`,
+  );
 
   // --- 15. Day/night cycle advances over time.
   await reset();
