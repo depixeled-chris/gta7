@@ -67,14 +67,19 @@ try {
       new PointerEvent('pointermove', { pointerId: 1, clientX: p.x, clientY: p.y - 55, bubbles: true }),
     );
   }, stick);
-  await page.waitForTimeout(1200);
-  const speed = await page.evaluate(() => {
-    const v = window.__game.vehicles;
-    const c = v.cars[v.playerIndex];
-    return Math.hypot(c.vx, c.vz);
-  });
+  // Poll while the stick is held — the slow headless renderer under-steps the
+  // (deliberately gentle) acceleration in a fixed wait.
+  let speed = 0;
+  for (let i = 0; i < 30 && speed <= 6; i++) {
+    await page.waitForTimeout(150);
+    speed = await page.evaluate(() => {
+      const v = window.__game.vehicles;
+      const c = v.cars[v.playerIndex];
+      return Math.hypot(c.vx, c.vz);
+    });
+  }
   await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, bubbles: true })));
-  check('joystick drives the car forward', speed > 5, `speed=${speed.toFixed(1)} m/s`);
+  check('joystick drives the car forward', speed > 6, `speed=${speed.toFixed(1)} m/s`);
 
   // Action button: tap it to get out, tap again to get back in.
   const enter = await center(page, '#tc-enter');

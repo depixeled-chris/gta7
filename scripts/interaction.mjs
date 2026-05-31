@@ -231,23 +231,29 @@ try {
     g.player.x = cx + 22; g.player.z = cz;
     return { j };
   });
-  await page.waitForTimeout(3600);
-  const brakeRes = await page.evaluate((j) => {
-    const g = window.__game;
-    const c = g.vehicles.cars[j];
-    return {
-      speed: Math.hypot(c.vx, c.vz),
-      dist: Math.hypot(c.x - g.player.x, c.z - g.player.z),
-      health: g.health,
-      wasted: g.wasted,
-    };
-  }, braked.j);
+  // Poll until the car settles to a near-stop (the slow headless renderer can
+  // still be rolling at a fixed sample time) — and bail early if it hits the ped.
+  let brakeRes = { speed: 99, dist: 0, health: 100, wasted: false };
+  let brakeHit = false;
+  for (let i = 0; i < 45; i++) {
+    await page.waitForTimeout(120);
+    brakeRes = await page.evaluate((j) => {
+      const g = window.__game;
+      const c = g.vehicles.cars[j];
+      return {
+        speed: Math.hypot(c.vx, c.vz),
+        dist: Math.hypot(c.x - g.player.x, c.z - g.player.z),
+        health: g.health,
+        wasted: g.wasted,
+      };
+    }, braked.j);
+    if (brakeRes.health < 100 || brakeRes.wasted) { brakeHit = true; break; }
+    if (brakeRes.speed < 1.2) break; // braked to a near-stop, short of the ped
+  }
   check(
-    // Braked hard from a 14 m/s cruise and stopped short of the ped (didn't hit
-    // them). Threshold is lenient on residual roll — the slow headless renderer
-    // doesn't always reach a dead stop in the window.
+    // Braked from a 14 m/s cruise and stopped short of the ped (never hit them).
     'cars brake for a standing pedestrian',
-    brakeRes.health === 100 && !brakeRes.wasted && brakeRes.speed < 3 && brakeRes.dist > 2.4,
+    !brakeHit && brakeRes.health === 100 && !brakeRes.wasted && brakeRes.speed < 1.5 && brakeRes.dist > 2.4,
     JSON.stringify(brakeRes),
   );
 
@@ -472,7 +478,7 @@ try {
     const c = g.city.colliders.reduce((a, b) => (b.minX < a.minX ? b : a));
     const car = g.vehicles.cars[g.vehicles.playerIndex];
     car.x = c.minX - 2; car.z = (c.minZ + c.maxZ) / 2; car.heading = 0;
-    car.vx = 16; car.vz = 0; // a solid but survivable smack into the wall
+    car.vx = 28; car.vz = 0; // a solid but survivable smack into the wall
     return { before: g.carHealth };
   });
   await page.waitForTimeout(500);

@@ -40,8 +40,9 @@ describe('crashDamage', () => {
     expect(crashDamage(10000)).toBeLessThan(CAR_MAX_HEALTH);
   });
 
-  it('but two hard hits do wreck it', () => {
-    expect(crashDamage(40) * 2).toBeGreaterThanOrEqual(CAR_MAX_HEALTH);
+  it('survives several flat-out hits but eventually wrecks (cars are tough)', () => {
+    expect(crashDamage(90) * 3).toBeLessThan(CAR_MAX_HEALTH); // three flat-out hits, still alive
+    expect(crashDamage(90) * 4).toBeGreaterThanOrEqual(CAR_MAX_HEALTH); // the fourth totals it
   });
 });
 
