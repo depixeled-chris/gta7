@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Building, Streetlight, Prop } from '../world/City';
 import type { FacadeStyle, PropType } from '../world/biome';
 import { makeFacadeTexture, makeGlowTexture } from './textures';
@@ -55,16 +56,14 @@ export class CityAssets {
       opacity: 0.9,
     });
 
-    const treeGeo = new THREE.ConeGeometry(1.15, 3.4, 8);
-    treeGeo.translate(0, 1.7, 0);
-    const hydrantGeo = new THREE.BoxGeometry(0.45, 0.9, 0.45);
-    hydrantGeo.translate(0, 0.45, 0);
-    const benchGeo = new THREE.BoxGeometry(1.6, 0.5, 0.5);
-    benchGeo.translate(0, 0.25, 0);
+    // Each prop is several primitives merged into ONE vertex-coloured geometry,
+    // so a whole prop type still renders as a single InstancedMesh while looking
+    // like an actual tree / hydrant / bench instead of a bare cone or box.
+    const vc = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
     this.propProto = {
-      tree: { geo: treeGeo, mat: new THREE.MeshStandardMaterial({ color: 0x2f5d3a, roughness: 0.9 }) },
-      hydrant: { geo: hydrantGeo, mat: new THREE.MeshStandardMaterial({ color: 0xb5402f, roughness: 0.6 }) },
-      bench: { geo: benchGeo, mat: new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.8, metalness: 0.3 }) },
+      tree: { geo: makeTreeGeometry(), mat: vc() },
+      hydrant: { geo: makeHydrantGeometry(), mat: vc() },
+      bench: { geo: makeBenchGeometry(), mat: vc() },
     };
   }
 
@@ -176,6 +175,63 @@ export interface CarMesh {
   group: THREE.Group;
   /** Front wheels, rotated for a visual steering cue. */
   steerWheels: THREE.Object3D[];
+}
+
+/** Give every vertex of a geometry the same colour (for merged, vertex-coloured props). */
+function paint(geo: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
+  const c = new THREE.Color(hex);
+  const n = geo.attributes.position.count;
+  const colors = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  return geo;
+}
+
+const merge = (parts: THREE.BufferGeometry[]): THREE.BufferGeometry =>
+  mergeGeometries(parts) as THREE.BufferGeometry;
+
+/** A little conifer: brown trunk + green canopy, base at y=0. */
+function makeTreeGeometry(): THREE.BufferGeometry {
+  const trunk = new THREE.CylinderGeometry(0.16, 0.22, 1.2, 6);
+  trunk.translate(0, 0.6, 0);
+  const canopy = new THREE.ConeGeometry(1.1, 2.6, 8);
+  canopy.translate(0, 2.5, 0);
+  return merge([paint(trunk, 0x6b4a2f), paint(canopy, 0x2f5d3a)]);
+}
+
+/** A fire hydrant: stout body, domed cap, two side nozzles. */
+function makeHydrantGeometry(): THREE.BufferGeometry {
+  const red = 0xb5402f;
+  const body = new THREE.CylinderGeometry(0.2, 0.24, 0.7, 8);
+  body.translate(0, 0.35, 0);
+  const dome = new THREE.SphereGeometry(0.2, 8, 6);
+  dome.translate(0, 0.7, 0);
+  const noz = new THREE.CylinderGeometry(0.07, 0.07, 0.28, 6);
+  noz.rotateZ(Math.PI / 2);
+  const left = noz.clone();
+  left.translate(-0.26, 0.42, 0);
+  const right = noz.clone();
+  right.translate(0.26, 0.42, 0);
+  return merge([body, dome, left, right].map((g) => paint(g, red)));
+}
+
+/** A park bench: seat, backrest, two legs. */
+function makeBenchGeometry(): THREE.BufferGeometry {
+  const dark = 0x33363d;
+  const seat = new THREE.BoxGeometry(1.5, 0.12, 0.5);
+  seat.translate(0, 0.45, 0);
+  const back = new THREE.BoxGeometry(1.5, 0.4, 0.1);
+  back.translate(0, 0.66, -0.2);
+  const legGeo = new THREE.BoxGeometry(0.12, 0.45, 0.45);
+  const legL = legGeo.clone();
+  legL.translate(-0.65, 0.22, 0);
+  const legR = legGeo.clone();
+  legR.translate(0.65, 0.22, 0);
+  return merge([seat, back, legL, legR].map((g) => paint(g, dark)));
 }
 
 /**
