@@ -56,7 +56,7 @@ Phases (each shippable, test-backed; top = do first):
 - [R028] 🔵 Actors collide with vehicles — @maintainer · the on-foot player and pedestrians clip through parked/other cars; resolve actors against nearby car circles, not just buildings
 - [R029] 🔵 Day/night cycle — @maintainer · animate sun/moon + lighting/fog over time; emissive night look is the current fixed state
 - [R006] 🔵 In-game options menu — @maintainer · volume sliders (radio vs SFX), maybe quality toggle
-- [R030] 🔵 Architecture review — separation of concerns / ECS — @maintainer · evaluate an ECS (Bevy-style entities+components+systems) vs a lighter systems/components refactor; decide BEFORE the big streaming rewrite churns Vehicles/Pedestrians/Scene/main. Produce a design doc + plan.
+- [R030] 🟡 Architecture → **full ECS** (decided) — @maintainer · ✅ design doc ([ecs-architecture.md](docs/research/ecs-architecture.md)) · ✅ ECS core (`src/ecs/World.ts`, 8 tests) · ✅ proof: Debris migrated onto the ECS in-engine (behaviour-preserving, deployed). ⏳ next (needs review/feedback as it gets riskier): Pedestrians → Vehicles (sub-stepped) → fold `main` state into resources/systems → then build P3 streaming on the ECS. **Stopped here deliberately** — the deeper migrations rework the e2e/debug-handle coupling and the Vehicles god-object, which shouldn't be gambled blind while away.
 
 ## 🔬 Researched — ready to implement
 Full write-ups in [`docs/research/`](docs/research/).
