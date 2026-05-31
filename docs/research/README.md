@@ -23,3 +23,4 @@ and reference it from the relevant `R###` item in [../../ROADMAP.md](../../ROADM
 | [ecs-architecture.md](ecs-architecture.md) | Full-ECS target design + incremental, test-gated migration plan | 🔬 design approved | R030 |
 | [gamepad-support.md](gamepad-support.md) | Web Gamepad API: standard mapping, radial deadzone, polling, edge detection | 🔬 ready | R036 |
 | [multiplayer.md](multiplayer.md) | Authoritative-server netcode, prediction/reconciliation, AOI, sharding+Redis+WS; constraints to keep MP-ready now | 🔬 informing-only | R037 |
+| [weapons-combat.md](weapons-combat.md) | Projectile-entity weapons (ped handheld + Interstate-76 vehicle-mounted), ECS + damage + MP-ready | 🔬 ready | R034 |
