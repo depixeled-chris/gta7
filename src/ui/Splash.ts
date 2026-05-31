@@ -6,7 +6,7 @@
  * reveal the game. The first gesture also unlocks audio (autoplay policy).
  * Given an id so the e2e harness can remove it before testing.
  */
-export function showSplash(container: HTMLElement): void {
+export function showSplash(container: HTMLElement, onContinue?: () => void): void {
   const overlay = document.createElement('div');
   overlay.id = 'splash';
   overlay.style.cssText =
@@ -46,6 +46,7 @@ export function showSplash(container: HTMLElement): void {
   const dismiss = (): void => {
     if (dismissed) return;
     dismissed = true;
+    onContinue?.(); // unlock audio — covers the gamepad path (no DOM gesture event)
     cleanup();
     // Phase 1 — fade the title out to pure black.
     img.style.opacity = '0';

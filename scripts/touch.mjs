@@ -83,12 +83,21 @@ try {
 
   // Action button: tap it to get out, tap again to get back in.
   const enter = await center(page, '#tc-enter');
+  await page.evaluate(() => { // stop the car so stepping out lands cleanly
+    const v = window.__game.vehicles; const c = v.cars[v.playerIndex]; c.vx = 0; c.vz = 0;
+  });
   await page.touchscreen.tap(enter.x, enter.y);
-  await page.waitForTimeout(250);
-  const afterExit = await page.evaluate(() => window.__game.mode);
+  let afterExit = 'driving';
+  for (let i = 0; i < 20 && afterExit !== 'foot'; i++) {
+    await page.waitForTimeout(100);
+    afterExit = await page.evaluate(() => window.__game.mode);
+  }
   await page.touchscreen.tap(enter.x, enter.y);
-  await page.waitForTimeout(250);
-  const afterEnter = await page.evaluate(() => window.__game.mode);
+  let afterEnter = 'foot';
+  for (let i = 0; i < 20 && afterEnter !== 'driving'; i++) {
+    await page.waitForTimeout(100);
+    afterEnter = await page.evaluate(() => window.__game.mode);
+  }
   check(
     'enter/exit button toggles on tap',
     afterExit === 'foot' && afterEnter === 'driving',

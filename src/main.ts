@@ -98,12 +98,21 @@ let radio: Radio | null = null;
 let radioPrimed = false;
 let radioCarIndex: number | null = null; // which car's radio is currently loaded
 const sfx = new Sfx();
+let audioGestured = false;
 const markGesture = (): void => {
+  audioGestured = true;
   sfx.start(); // create/resume the audio context within the gesture
   primeRadio(); // iOS only lets the <audio> element start from inside a gesture
 };
 addEventListener('keydown', markGesture);
 addEventListener('pointerdown', markGesture);
+addEventListener('touchend', markGesture); // some iOS taps surface here, not pointerdown
+// A backgrounded tab suspends the context; resume whenever we're focused again.
+// This is also why audio "came back after alt-tab" — make it reliable, not luck.
+addEventListener('focus', () => sfx.start());
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) sfx.start();
+});
 
 /**
  * Kick the radio off. MUST be reachable from a user-gesture call stack: iOS
@@ -133,6 +142,7 @@ fetch('radio.json')
         tracks: s.tracks.map((t) => ({ title: t.title, url: data.baseUrl + t.file })),
       })),
     );
+    if (audioGestured) primeRadio(); // gesture already happened, manifest just landed
   })
   .catch(() => {});
 
@@ -567,4 +577,4 @@ window.__game = {
 };
 
 new GameLoop(update, render).start();
-showSplash(container); // title screen; click/tap/key/gamepad fades into the game
+showSplash(container, markGesture); // title screen; dismissal (incl. gamepad) unlocks audio
