@@ -4,6 +4,7 @@ import { createRng, type Rng } from '../core/rng';
 import { lerp, angleLerp } from '../core/math';
 import { makePed } from '../render/Assets';
 import { Debris } from './Debris';
+import { World, defineComponent } from '../ecs/World';
 
 type State = 'walk' | 'shoved' | 'gibbed';
 
@@ -36,6 +37,11 @@ type ImpactQuery = (
   z: number,
 ) => { speed: number; vx: number; vz: number; isPlayer: boolean } | null;
 
+type Threat = { x: number; z: number; vx: number; vz: number } | null | undefined;
+
+/** Each pedestrian is an entity carrying its `Ped` data as one component. */
+const Pedestrian = defineComponent<Ped>('Pedestrian');
+
 const SHIRTS = [0xcf5b5b, 0x5b8acf, 0x6ccf8a, 0xcfc05b, 0xa05bcf, 0xdddddd, 0x444444];
 const RADIUS = 0.35;
 const SHOVE_SPEED = 2; // m/s: below this a car is too slow to do anything
@@ -56,13 +62,24 @@ const VECTOR_SPEED = 8; // ...and moving at least this fast (a car, not a stroll
  * low speed — flung, tumbles, gets back up, survives), or gibbed (hit fast
  * enough to explode into cubes, then respawn elsewhere). Only the player's
  * gib kills score on the HUD.
+ *
+ * Migrated onto the ECS (see docs/research/ecs-architecture.md): each ped is an
+ * entity with a `Pedestrian` component, and the walk/fear/impact loop and the
+ * interpolated render are ECS systems. `peds` still exposes the same `Ped`
+ * objects (the component values), so the debug handle and e2e are unchanged.
  */
 export class Pedestrians {
+  private readonly world = new World();
   private readonly peds: Ped[] = [];
   private readonly rng: Rng;
   private readonly debris: Debris;
   private tick = 0; // render-frame counter for the fear tremble
   runOverCount = 0;
+
+  // Per-tick inputs the update system reads (set in `update` before stepping).
+  private curCity?: City;
+  private curImpact?: ImpactQuery;
+  private curThreat: Threat;
 
   constructor(scene: THREE.Scene, private readonly city: City, count = 60, seed = 333) {
     this.rng = createRng(seed);
@@ -74,24 +91,36 @@ export class Pedestrians {
       const x = this.rng.range(-city.half, city.half);
       const z = this.rng.range(-city.half, city.half);
       const heading = this.rng.range(0, Math.PI * 2);
-      this.peds.push({
+      const ped: Ped = {
         state: 'walk', x, z, y: 0, heading, tumble: 0, color, scared: false,
         speed: this.rng.range(1, 2.2),
         turnTimer: this.rng.range(1, 5),
         vx: 0, vz: 0, vy: 0, timer: 0,
         px: x, pz: z, py: 0, ph: heading, ptumble: 0,
         group,
-      });
+      };
+      this.peds.push(ped);
+      this.world.add(this.world.create(), Pedestrian, ped);
     }
+    this.world.addSystem('update', (w, dt) => this.stepPeds(w, dt));
+    this.world.addSystem('render', (w, alpha) => this.drawPeds(w, alpha));
   }
 
-  update(
-    city: City,
-    dt: number,
-    impactAt?: ImpactQuery,
-    threat?: { x: number; z: number; vx: number; vz: number } | null,
-  ): void {
-    for (const ped of this.peds) {
+  update(city: City, dt: number, impactAt?: ImpactQuery, threat?: Threat): void {
+    this.curCity = city;
+    this.curImpact = impactAt;
+    this.curThreat = threat;
+    this.world.update(dt);
+    this.debris.update(dt);
+  }
+
+  /** Update system: advance every pedestrian (walk / flee / shoved / gibbed). */
+  private stepPeds(w: World, dt: number): void {
+    const city = this.curCity!;
+    const impactAt = this.curImpact;
+    const threat = this.curThreat;
+    for (const e of w.query(Pedestrian)) {
+      const ped = w.get(e, Pedestrian)!;
       ped.px = ped.x;
       ped.pz = ped.z;
       ped.py = ped.y;
@@ -163,8 +192,6 @@ export class Pedestrians {
       if (imp && imp.speed >= GIB_SPEED) this.gib(ped, imp);
       else if (imp && imp.speed >= SHOVE_SPEED) this.shove(ped, imp);
     }
-
-    this.debris.update(dt);
   }
 
   private shove(ped: Ped, imp: { vx: number; vz: number }): void {
@@ -243,10 +270,16 @@ export class Pedestrians {
     ped.group.visible = true;
   }
 
-  /** Position meshes, interpolating between the previous and current step. */
   render(alpha: number): void {
+    this.world.render(alpha);
+    this.debris.render(alpha);
+  }
+
+  /** Render system: position meshes, interpolating between physics steps. */
+  private drawPeds(w: World, alpha: number): void {
     this.tick++;
-    for (const ped of this.peds) {
+    for (const e of w.query(Pedestrian)) {
+      const ped = w.get(e, Pedestrian)!;
       if (ped.state === 'gibbed') continue; // hidden while exploded
       // A fast little tremble (visual only) while scared.
       let sx = 0;
@@ -264,6 +297,5 @@ export class Pedestrians {
       );
       ped.group.rotation.set(lerp(ped.ptumble, ped.tumble, alpha), angleLerp(ped.ph, ped.heading, alpha), roll);
     }
-    this.debris.render(alpha);
   }
 }
