@@ -4,6 +4,12 @@ export type Mode = 'driving' | 'foot';
 
 const MAP_SIZE = 190;
 
+// Shared HUD design tokens so the widgets read as one designed overlay.
+const ACCENT = '#54a0ff';
+const CHIP =
+  'padding:6px 12px;background:rgba(12,16,26,.55);border:1px solid rgba(255,255,255,.07);' +
+  'border-radius:8px;backdrop-filter:blur(6px);';
+
 /**
  * DOM overlay: speedometer, current mode, control legend, and a live minimap.
  * The static map (roads + footprints) is rendered once to an offscreen canvas
@@ -44,14 +50,14 @@ export class HUD {
     this.speedEl.style.cssText = `font-size:${touch ? 30 : 46}px;font-weight:700;letter-spacing:-1px;`;
     const unit = document.createElement('div');
     unit.textContent = 'MPH';
-    unit.style.cssText = 'font-size:13px;opacity:.6;margin-top:2px;';
+    unit.style.cssText = `font-size:13px;opacity:.7;margin-top:2px;color:${ACCENT};letter-spacing:2px;`;
     speedBox.append(this.speedEl, unit);
+    speedBox.style.cssText += CHIP;
     root.appendChild(speedBox);
 
     this.modeEl = document.createElement('div');
     this.modeEl.style.cssText =
-      'position:absolute;left:20px;top:18px;font-size:15px;font-weight:700;' +
-      'padding:6px 12px;background:rgba(10,14,24,.55);border-radius:6px;backdrop-filter:blur(4px);';
+      'position:absolute;left:20px;top:18px;font-size:14px;font-weight:700;letter-spacing:1px;' + CHIP;
     root.appendChild(this.modeEl);
 
     this.wantedEl = document.createElement('div');
@@ -64,24 +70,25 @@ export class HUD {
 
     const healthTrack = document.createElement('div');
     healthTrack.style.cssText =
-      'position:absolute;left:20px;top:54px;width:180px;height:12px;' +
-      'background:rgba(10,14,24,.55);border-radius:6px;overflow:hidden;';
+      'position:absolute;left:20px;top:58px;width:182px;height:13px;' +
+      'background:rgba(12,16,26,.6);border:1px solid rgba(255,255,255,.07);border-radius:7px;' +
+      'overflow:hidden;backdrop-filter:blur(6px);';
     this.healthFill = document.createElement('div');
-    this.healthFill.style.cssText = 'height:100%;width:100%;background:#54ff84;transition:width .1s linear;';
+    this.healthFill.style.cssText =
+      'height:100%;width:100%;background:linear-gradient(90deg,#3ad17a,#7dffa6);transition:width .1s linear;';
     healthTrack.appendChild(this.healthFill);
     root.appendChild(healthTrack);
 
     this.scoreEl = document.createElement('div');
     this.scoreEl.style.cssText =
-      'position:absolute;left:50%;top:12px;transform:translateX(-50%);font-size:13px;' +
-      'opacity:.85;padding:5px 12px;background:rgba(10,14,24,.5);border-radius:6px;';
+      'position:absolute;left:50%;top:12px;transform:translateX(-50%);font-size:13px;font-weight:700;' + CHIP;
     this.scoreEl.textContent = '🚶 0';
     root.appendChild(this.scoreEl);
 
     this.radioEl = document.createElement('div');
     this.radioEl.style.cssText =
-      'position:absolute;left:50%;top:42px;transform:translateX(-50%);font-size:12px;' +
-      'opacity:.8;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      'position:absolute;left:50%;top:48px;transform:translateX(-50%);font-size:12px;' +
+      'max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' + CHIP;
     this.radioEl.textContent = '📻 OFF';
     root.appendChild(this.radioEl);
 
@@ -90,10 +97,9 @@ export class HUD {
     this.clockEl = document.createElement('div');
     this.clockEl.style.cssText =
       (touch
-        ? 'position:absolute;left:20px;top:100px;'
+        ? 'position:absolute;left:20px;top:104px;'
         : 'position:absolute;right:20px;top:16px;') +
-      'font-size:15px;font-weight:700;opacity:.85;padding:4px 10px;' +
-      'background:rgba(10,14,24,.5);border-radius:6px;backdrop-filter:blur(4px);';
+      'font-size:14px;font-weight:700;letter-spacing:1px;' + CHIP;
     root.appendChild(this.clockEl);
 
     // Current car make/model, above the speedometer (driving only).
@@ -119,20 +125,10 @@ export class HUD {
       bigText + 'color:#3aa0ff;background:radial-gradient(circle,rgba(0,16,40,.4),rgba(0,0,0,.85));';
     root.appendChild(this.bustedEl);
 
-    const help = document.createElement('div');
-    help.innerHTML =
-      'WASD / Arrows — drive &nbsp;·&nbsp; Space — handbrake &nbsp;·&nbsp; F — enter / exit<br>' +
-      'Shift — sprint &nbsp;·&nbsp; R — reset car &nbsp;·&nbsp; [ ] — radio station';
-    help.style.cssText =
-      'position:absolute;left:20px;bottom:20px;font-size:12px;opacity:.7;line-height:1.6;';
-    if (touch) help.style.display = 'none'; // the on-screen controls sit here instead
-    root.appendChild(help);
+    // (Control legend now lives in the title/pause menu — keep the HUD clean.)
 
-    const title = document.createElement('div');
-    title.innerHTML = 'GTA <b>7</b> <span style="opacity:.5;font-weight:400">// vertical slice</span>';
-    title.style.cssText = 'position:absolute;right:20px;top:18px;font-size:15px;';
-    if (touch) title.style.display = 'none'; // top-right is the speedometer on touch
-    root.appendChild(title);
+    // (Decorative wordmark dropped — the splash/title menu carry the name; the
+    // top-right corner is the clock now.)
 
     this.mapCanvas = document.createElement('canvas');
     this.mapCanvas.width = this.mapCanvas.height = MAP_SIZE;
