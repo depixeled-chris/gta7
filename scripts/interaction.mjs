@@ -749,6 +749,31 @@ try {
   const t1 = await page.evaluate(() => window.__game.timeOfDay);
   check('day/night cycle advances', t1 > t0, `timeOfDay ${t0.toFixed(4)} -> ${t1.toFixed(4)}`);
 
+  // --- 16. Pause menu: Esc freezes the sim (time stops); Esc again resumes.
+  await reset();
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(120);
+  const pausedState = await page.evaluate(() => ({
+    paused: window.__game.paused,
+    menu: getComputedStyle(document.getElementById('menu')).display !== 'none',
+    t: window.__game.timeOfDay,
+  }));
+  await page.waitForTimeout(500); // sim should NOT advance while paused
+  const stillPaused = await page.evaluate(() => window.__game.timeOfDay);
+  await page.keyboard.press('Escape'); // resume
+  await page.waitForTimeout(400);
+  const resumed = await page.evaluate(() => ({
+    paused: window.__game.paused,
+    t: window.__game.timeOfDay,
+  }));
+  check(
+    'Esc pauses (sim frozen) and resumes',
+    pausedState.paused && pausedState.menu &&
+      Math.abs(stillPaused - pausedState.t) < 1e-6 && // time frozen while paused
+      !resumed.paused && resumed.t > stillPaused, // time advances again after resume
+    `paused=${pausedState.paused} frozenΔ=${(stillPaused - pausedState.t).toFixed(5)} resumed=${!resumed.paused}`,
+  );
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();

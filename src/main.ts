@@ -10,8 +10,10 @@ import { Debris } from './systems/Debris';
 import { World } from './ecs/World';
 import { HUD, type Mode } from './ui/HUD';
 import { showSplash } from './ui/Splash';
+import { Menu } from './ui/Menu';
 import { Controls } from './core/Controls';
 import { GameLoop } from './core/GameLoop';
+import { loadOptions, saveOptions, qualityPixelRatio, type GameOptions } from './core/options';
 import { lerp, angleLerp, starsFromHeat, daylightFactor } from './core/math';
 import { Radio } from './audio/Radio';
 import { Sfx } from './audio/Sfx';
@@ -31,11 +33,13 @@ const ENGINE_HEAR = 28; // on foot, how far a parked car's idle is audible
 const STEP_DISTANCE = 1.7; // metres of travel between footstep sounds
 let footAccum = 0;
 
-const DAY_LENGTH = 480; // seconds for a full day/night cycle
+let dayLength = 480; // seconds for a full day/night cycle (overridden by options)
 let timeOfDay = 0; // [0,1), 0 = midnight (the original night look)
 
 const container = document.getElementById('app')!;
 const touch = isTouchDevice();
+const options = loadOptions();
+dayLength = options.dayLength;
 const city = generateCity(DEFAULT_CITY);
 
 const env = new SceneEnv(
@@ -344,7 +348,7 @@ function flushCarWrecks(): void {
 
 function update(dt: number): void {
   player.savePrev();
-  timeOfDay = (timeOfDay + dt / DAY_LENGTH) % 1;
+  timeOfDay = (timeOfDay + dt / dayLength) % 1;
 
   if (wasted || busted) {
     if (wasted) wastedTimer -= dt;
@@ -521,6 +525,7 @@ declare global {
       readonly wantedCooling: boolean;
       readonly police: number;
       readonly timeOfDay: number;
+      readonly paused: boolean;
       readonly radioReady: boolean;
       readonly carModel: string | null;
       readonly perf: Perf;
@@ -565,6 +570,9 @@ window.__game = {
   get timeOfDay() {
     return timeOfDay;
   },
+  get paused() {
+    return loop.isPaused();
+  },
   get radioReady() {
     return radio !== null; // manifest fetched + tuner built
   },
@@ -580,5 +588,49 @@ window.__game = {
   city,
 };
 
-new GameLoop(update, render).start();
+const loop = new GameLoop(update, render);
+
+/** Push the current options everywhere they take live effect. */
+function applyOptions(opts: GameOptions): void {
+  sfx.setMasterVolume(opts.masterVolume);
+  radio?.setMasterVolume(opts.masterVolume);
+  env.renderer.setPixelRatio(Math.min(window.devicePixelRatio, qualityPixelRatio(opts.quality)));
+  dayLength = opts.dayLength;
+}
+applyOptions(options);
+
+const menu = new Menu(container, options, {
+  onResume: () => setPaused(false),
+  onRestart: () => location.reload(),
+  onOptionsChange: (opts) => {
+    applyOptions(opts);
+    saveOptions(opts);
+  },
+});
+
+function setPaused(p: boolean): void {
+  menu.setOpen(p);
+  loop.setPaused(p);
+}
+
+// Esc (keyboard) toggles the pause menu both ways — a DOM listener, so it fires
+// even while the sim loop is frozen.
+addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' && !document.getElementById('splash')) setPaused(!menu.isOpen());
+});
+
+// Gamepad Start toggles pause. Polled on its own rAF (not the sim loop, which is
+// frozen while paused) so the pad can also close the menu.
+let padStartDown = false;
+const pollPause = (): void => {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let start = false;
+  for (const p of pads) if (p && p.buttons[9]?.pressed) start = true;
+  if (start && !padStartDown && !document.getElementById('splash')) setPaused(!menu.isOpen());
+  padStartDown = start;
+  requestAnimationFrame(pollPause);
+};
+requestAnimationFrame(pollPause);
+
+loop.start();
 showSplash(container, markGesture); // title screen; dismissal (incl. gamepad) unlocks audio

@@ -26,6 +26,12 @@ export class Radio {
   private loadedCarId: number | null = null;
   private prefetchLink?: HTMLLinkElement;
   private errorStreak = 0;
+  private masterVolume = 0.8; // 0..1 from options; scales the proximity volume
+
+  /** Master volume (0..1) from the options menu. */
+  setMasterVolume(v: number): void {
+    this.masterVolume = Math.max(0, Math.min(1, v));
+  }
 
   constructor(stations: RadioStation[]) {
     this.model = new RadioModel(stations);
@@ -80,7 +86,7 @@ export class Radio {
    */
   updateProximity(inCar: boolean, distance: number): void {
     if (this.loadedCarId === null) return;
-    const v = inCar ? 1 : Math.max(0, 1 - distance / HEAR_RADIUS) * 0.5;
+    const v = (inCar ? 1 : Math.max(0, 1 - distance / HEAR_RADIUS) * 0.5) * this.masterVolume;
     this.audio.volume = v;
     if (v <= 0.001) {
       if (!this.audio.paused) this.audio.pause();

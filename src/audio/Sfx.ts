@@ -7,6 +7,8 @@ import { engineToneHz } from '../core/math';
  * and resumed on the first user gesture (autoplay policy); every method no-ops
  * until then, so it's safe to call anytime.
  */
+const MASTER_BOOST = 2.2; // internal headroom boost; user volume scales this
+
 export class Sfx {
   private ctx?: AudioContext;
   private master?: GainNode;
@@ -15,6 +17,7 @@ export class Sfx {
   private engineGain?: GainNode;
   private screechGain?: GainNode;
   private started = false;
+  private masterVolume = 0.8; // 0..1 from options; scales the internal boost
 
   start(): void {
     if (this.started) {
@@ -27,7 +30,7 @@ export class Sfx {
     const ctx = new Ctor();
     this.ctx = ctx;
     this.master = ctx.createGain();
-    this.master.gain.value = 2.2; // pushed louder again; a compressor tames the peaks
+    this.master.gain.value = MASTER_BOOST * this.masterVolume; // a compressor tames the peaks
     // Limiter so the boosted gain doesn't clip harshly when effects stack.
     const comp = ctx.createDynamicsCompressor();
     this.master.connect(comp);
@@ -84,6 +87,14 @@ export class Sfx {
     const t = this.ctx.currentTime;
     this.engineGain.gain.setTargetAtTime(Math.max(0, Math.min(1, volume)) * 0.06, t, 0.1);
     this.engineOsc.frequency.setTargetAtTime(engineToneHz(speed01), t, 0.05);
+  }
+
+  /** Master volume (0..1) from the options menu; applied live. */
+  setMasterVolume(v: number): void {
+    this.masterVolume = Math.max(0, Math.min(1, v));
+    if (this.master && this.ctx) {
+      this.master.gain.setTargetAtTime(MASTER_BOOST * this.masterVolume, this.ctx.currentTime, 0.02);
+    }
   }
 
   /** A dull footstep tap — audible over the engine/ambient bed. */

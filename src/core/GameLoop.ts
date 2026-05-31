@@ -16,6 +16,7 @@ export class GameLoop {
   private accumulator = 0;
   private last = 0;
   private running = false;
+  private paused = false;
 
   constructor(
     private readonly update: (dt: number) => void,
@@ -36,10 +37,25 @@ export class GameLoop {
     this.running = false;
   }
 
+  /** Freeze the simulation (e.g. a pause menu). Rendering continues so the
+   * frozen scene stays visible behind the overlay; no sim time accumulates. */
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+  }
+
+  isPaused(): boolean {
+    return this.paused;
+  }
+
   private frame = (now: number): void => {
     if (!this.running) return;
     let frameTime = (now - this.last) / 1000;
     this.last = now;
+    if (this.paused) {
+      this.render(0, frameTime); // hold the current frame; advance no sim time
+      requestAnimationFrame(this.frame);
+      return;
+    }
     if (frameTime > this.maxFrame) frameTime = this.maxFrame;
     this.accumulator += frameTime;
 
