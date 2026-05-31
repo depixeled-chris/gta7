@@ -1,6 +1,6 @@
 import { createRng, hashSeed } from '../core/rng';
 import { makeNoise2D, fbm, type Noise2D } from '../core/noise';
-import { classify, BIOMES, type BiomeDef } from './biome';
+import { classify, BIOMES, type BiomeDef, type FacadeStyle } from './biome';
 import type { Aabb } from '../systems/Collision';
 import { SpatialGrid } from '../systems/SpatialGrid';
 
@@ -11,6 +11,7 @@ export interface Building {
   depth: number; // along Z
   height: number;
   color: number; // base facade tint
+  style: FacadeStyle; // facade texture family
 }
 
 /** A drivable lane: a straight segment with a travel direction. */
@@ -215,8 +216,9 @@ function addBlock(
       const cx = lotX + lotSize / 2;
       const cz = lotZ + lotSize / 2;
       const height = rng.range(hMin, hMax);
+      const style = rng.pick(biome.facades);
 
-      buildings.push({ cx, cz, width, depth, height, color: rng.pick(biome.palette) });
+      buildings.push({ cx, cz, width, depth, height, color: rng.pick(biome.palette), style });
 
       const hw = width / 2;
       const hd = depth / 2;

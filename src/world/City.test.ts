@@ -103,6 +103,12 @@ describe('biome-driven variety', () => {
     // A single biome has 4 tints; spanning biomes yields more distinct colours.
     expect(colors.size).toBeGreaterThan(4);
   });
+
+  it('mixes facade styles across the city (not all glass towers)', () => {
+    const city = generateCity(DEFAULT_CITY);
+    const styles = new Set(city.buildings.map((b) => b.style));
+    expect(styles.size).toBeGreaterThan(1);
+  });
 });
 
 describe('parking', () => {

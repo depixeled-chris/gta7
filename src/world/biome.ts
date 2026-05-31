@@ -11,6 +11,9 @@
  */
 export type BiomeId = 'water' | 'rural' | 'suburb' | 'urban' | 'urbanCore';
 
+/** Facade texture family — picked per building so a biome isn't all glass towers. */
+export type FacadeStyle = 'glass' | 'brick' | 'concrete';
+
 export interface BiomeDef {
   id: BiomeId;
   buildingDensity: number; // per-lot spawn probability (0–1)
@@ -19,6 +22,7 @@ export interface BiomeDef {
   trafficDensity: number; // 0–1, relative ambient car count
   pedDensity: number; // 0–1, relative ambient pedestrian count
   palette: number[]; // facade tints for this biome
+  facades: FacadeStyle[]; // facade texture families that appear here
 }
 
 /**
@@ -42,6 +46,7 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
     trafficDensity: 0,
     pedDensity: 0,
     palette: [],
+    facades: [],
   },
   rural: {
     id: 'rural',
@@ -51,6 +56,7 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
     trafficDensity: 0.2,
     pedDensity: 0.1,
     palette: [0x6b5d4f, 0x7a6a55, 0x5e5346, 0x837256],
+    facades: ['brick'], // low houses/barns
   },
   suburb: {
     id: 'suburb',
@@ -60,6 +66,7 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
     trafficDensity: 0.5,
     pedDensity: 0.4,
     palette: [0x8a8f9c, 0x9aa0ad, 0x7c828f, 0xa79f95],
+    facades: ['brick', 'concrete'], // houses + small commercial
   },
   urban: {
     id: 'urban',
@@ -69,6 +76,7 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
     trafficDensity: 0.85,
     pedDensity: 0.8,
     palette: [0x3b4252, 0x434c5e, 0x4c566a, 0x5e6472],
+    facades: ['glass', 'concrete'], // mid-rise offices + towers
   },
   urbanCore: {
     id: 'urbanCore',
@@ -78,6 +86,7 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
     trafficDensity: 1,
     pedDensity: 1,
     palette: [0x2e3440, 0x39414f, 0x3b4252, 0x2b3a55],
+    facades: ['glass'], // glass skyscrapers
   },
 };
 

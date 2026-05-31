@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { City, Lane } from '../world/City';
 import { createRng } from '../core/rng';
 import { damp, lerp, angleLerp, safeApproachSpeed, leadTime, pursuitSpeed } from '../core/math';
-import { makeCar } from '../render/Assets';
+import { makeCar, CAR_SHAPES, type CarShape } from '../render/Assets';
 import { circleOverlap, nearestIndex } from './Collision';
 import { Debris } from './Debris';
 import { Smoke } from './Smoke';
@@ -44,6 +44,7 @@ interface Car {
   cruise: number;
   health: number; // body integrity; explodes at 0 (see crashDamage)
   color: number; // body colour, for the explosion debris
+  shapeId: string; // car body silhouette (visual variety)
   group: THREE.Group;
   steerWheels: THREE.Object3D[];
   lightMat?: THREE.MeshStandardMaterial; // police roof light (flashed in render)
@@ -104,7 +105,8 @@ export class Vehicles {
   constructor(scene: THREE.Scene, city: City, trafficCount = 40, seed = 909) {
     this.debris = new Debris(scene);
     this.smoke = new Smoke(scene);
-    this.spawn(scene, makeCar(PLAYER_COLOR), PLAYER_COLOR, city.center.x, city.center.z, 0, 'parked', null, 0);
+    const sedan = CAR_SHAPES[0];
+    this.spawn(scene, makeCar(PLAYER_COLOR, sedan), PLAYER_COLOR, sedan.id, city.center.x, city.center.z, 0, 'parked', null, 0);
 
     const rng = createRng(seed);
     for (let i = 0; i < trafficCount && city.lanes.length > 0; i++) {
@@ -113,17 +115,20 @@ export class Vehicles {
       const x = lane.axis === 'x' ? along : lane.fixed;
       const z = lane.axis === 'z' ? along : lane.fixed;
       const color = rng.pick(TRAFFIC_COLORS);
-      this.spawn(scene, makeCar(color), color, x, z, 0, 'ai', lane, rng.range(10, 22));
+      const shape = rng.pick(CAR_SHAPES);
+      this.spawn(scene, makeCar(color, shape), color, shape.id, x, z, 0, 'ai', lane, rng.range(10, 22));
     }
 
     for (const spot of city.parkingSpots) {
       const color = rng.pick(TRAFFIC_COLORS);
-      this.spawn(scene, makeCar(color), color, spot.x, spot.z, spot.heading, 'parked', null, 0);
+      const shape = rng.pick(CAR_SHAPES);
+      this.spawn(scene, makeCar(color, shape), color, shape.id, spot.x, spot.z, spot.heading, 'parked', null, 0);
     }
 
     // A pool of idle police cars (hidden off-map) that a wanted level activates.
+    const policeShape: CarShape = CAR_SHAPES.find((s) => s.id === 'sports') ?? CAR_SHAPES[0];
     for (let i = 0; i < POLICE_POOL; i++) {
-      const mesh = makeCar(POLICE_COLOR);
+      const mesh = makeCar(POLICE_COLOR, policeShape);
       const lightMat = new THREE.MeshStandardMaterial({
         color: 0x220008,
         emissive: 0xff2030,
@@ -137,7 +142,7 @@ export class Vehicles {
       this.cars.push({
         x: 1e6, z: 1e6, heading: 0, vx: 0, vz: 0, px: 1e6, pz: 1e6, ph: 0,
         role: 'police', active: false, lane: null, cruise: 0,
-        health: CAR_MAX_HEALTH, color: POLICE_COLOR,
+        health: CAR_MAX_HEALTH, color: POLICE_COLOR, shapeId: policeShape.id,
         group: mesh.group, steerWheels: mesh.steerWheels, lightMat,
       });
     }
@@ -147,6 +152,7 @@ export class Vehicles {
     scene: THREE.Scene,
     mesh: { group: THREE.Group; steerWheels: THREE.Object3D[] },
     color: number,
+    shapeId: string,
     x: number,
     z: number,
     heading: number,
@@ -159,7 +165,7 @@ export class Vehicles {
     scene.add(mesh.group);
     this.cars.push({
       x, z, heading, vx: 0, vz: 0, px: x, pz: z, ph: heading,
-      role, active: true, lane, cruise, health: CAR_MAX_HEALTH, color,
+      role, active: true, lane, cruise, health: CAR_MAX_HEALTH, color, shapeId,
       group: mesh.group, steerWheels: mesh.steerWheels,
     });
   }

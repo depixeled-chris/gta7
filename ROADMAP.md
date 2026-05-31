@@ -42,7 +42,7 @@ Phases (each shippable, test-backed; top = do first):
 - [R015] ✅ P1 — Field core: pure `src/core/noise.ts` (simplex + fbm/ridged/warp + `hashSeed`) + `world/biome.ts` classifier/table + determinism tests (2026-05-30)
 - [R016] ✅ P2 — `generateChunk(cx,cz)` refactor — finite city is now a tiling of independently-seeded chunks; determinism tests (2026-05-30). *(Rendering-follows-player decouple folded into P3, where streaming actually exercises it.)*
 - [R007] 🔬 P3 — AOI streaming: load/unload ring + hysteresis + per-frame budget + pooling; per-chunk traffic/peds/colliders/minimap (drop wrap-around); shadow/fog/ground follow the player (the deferred P2 rendering decouple)
-- [R005] 🟡 P4 — Biome variety: ✅ biome-driven building density/height/palette (urbanity field → BIOMES table); ⏳ street props + car variety + varied footprints next
+- [R005] 🟡 P4 — Biome variety: ✅ biome density/height/palette, ✅ car body shapes (sedan/compact/sports/van/pickup), ✅ facade styles (glass/brick/concrete per biome); ⏳ street props + varied footprints next
 - [R017] 🔬 P5 — Roads & highways: field-driven warped grid + hashed-anchor highway splines + `highway` lane class
 - [R018] 🔬 P6 — Rivers & bridges: river SDF + elevation carve + water collision + bridge boolean
 - [R009] 🔬 P7 — Perf hardening: merged geometry + InstancedMesh + LOD + dispose; Worker offload if gen hitches; WASM only if triggers met

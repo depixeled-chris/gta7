@@ -534,6 +534,14 @@ try {
   const smoke = await page.evaluate(() => window.__game.vehicles.smokeParticles());
   check('a damaged car emits smoke particles', smoke > 0, `live particles=${smoke}`);
 
+  // --- 14. Cars come in varied body shapes (visual variety).
+  await reset();
+  const shapes = await page.evaluate(() => {
+    const ids = new Set(window.__game.vehicles.cars.map((c) => c.shapeId));
+    return [...ids];
+  });
+  check('cars have varied body shapes', shapes.length > 1, `shapes=${shapes.join(',')}`);
+
   if (!results.some((r) => r.name === 'no page errors')) check('no page errors', true, '');
 } finally {
   await browser.close();

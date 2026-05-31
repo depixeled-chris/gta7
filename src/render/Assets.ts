@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Building, Streetlight } from '../world/City';
+import type { FacadeStyle } from '../world/biome';
 import { makeFacadeTexture, makeGlowTexture } from './textures';
 
 const LAMP_HEIGHT = 5.2;
@@ -12,8 +13,10 @@ const UV_TILE = 24; // world units per full facade-texture tile (~3 units/window
  * of materials. Per-building geometry carries custom UV scaling so window rows
  * track each tower's real height.
  */
+const FACADE_STYLES: FacadeStyle[] = ['glass', 'brick', 'concrete'];
+
 export class CityAssets {
-  private readonly facades: THREE.CanvasTexture[];
+  private readonly facadesByStyle: Record<FacadeStyle, THREE.CanvasTexture[]>;
   private readonly sideCache = new Map<string, THREE.Material>();
   private readonly roofMat: THREE.Material;
 
@@ -31,7 +34,14 @@ export class CityAssets {
   private readonly poolMat: THREE.Material;
 
   constructor(seed: number, variants = 3) {
-    this.facades = Array.from({ length: variants }, (_, i) => makeFacadeTexture(seed + i * 101));
+    // A small pool of texture variants per facade style; buildings draw from the
+    // pool matching their biome-assigned style, so the skyline isn't all glass.
+    this.facadesByStyle = { glass: [], brick: [], concrete: [] };
+    FACADE_STYLES.forEach((style, s) => {
+      for (let i = 0; i < variants; i++) {
+        this.facadesByStyle[style].push(makeFacadeTexture(seed + s * 1000 + i * 101, style));
+      }
+    });
     this.roofMat = new THREE.MeshStandardMaterial({ color: 0x14171f, roughness: 0.95 });
     this.poolMat = new THREE.MeshBasicMaterial({
       map: makeGlowTexture(),
@@ -67,7 +77,8 @@ export class CityAssets {
     const geo = new THREE.BoxGeometry(b.width, b.height, b.depth);
     scaleFacadeUvs(geo, b.width, b.height, b.depth);
 
-    const facade = this.facades[index % this.facades.length];
+    const pool = this.facadesByStyle[b.style];
+    const facade = pool[index % pool.length];
     const side = this.sideMaterial(facade, b.color);
     // Face order: +X, -X, +Y(roof), -Y(floor), +Z, -Z.
     const mesh = new THREE.Mesh(geo, [side, side, this.roofMat, this.roofMat, side, side]);
@@ -122,31 +133,60 @@ export interface CarMesh {
   steerWheels: THREE.Object3D[];
 }
 
-export function makeCar(color: number): CarMesh {
+/**
+ * A car body silhouette. Dimensions stay close to the shared collision circle
+ * (CAR_RADIUS), so variety is visual — proportions, ride height, cabin shape —
+ * not a physics change (per-car mass/radius is R003). `cabinX` shifts the cabin
+ * fore/aft (a pickup's cab sits forward; a van's is long and tall).
+ */
+export interface CarShape {
+  id: string;
+  length: number;
+  width: number;
+  bodyH: number; // body box height
+  bodyY: number; // body centre height (ride)
+  cabinLen: number;
+  cabinH: number;
+  cabinX: number; // cabin offset along length (+front)
+  wheelR: number;
+}
+
+export const CAR_SHAPES: CarShape[] = [
+  { id: 'sedan', length: 4.0, width: 1.9, bodyH: 0.7, bodyY: 0.65, cabinLen: 2.1, cabinH: 0.7, cabinX: -0.2, wheelR: 0.45 },
+  { id: 'compact', length: 3.5, width: 1.8, bodyH: 0.72, bodyY: 0.62, cabinLen: 1.6, cabinH: 0.74, cabinX: -0.1, wheelR: 0.42 },
+  { id: 'sports', length: 4.3, width: 1.86, bodyH: 0.55, bodyY: 0.5, cabinLen: 1.8, cabinH: 0.5, cabinX: -0.35, wheelR: 0.44 },
+  { id: 'van', length: 4.4, width: 2.0, bodyH: 1.0, bodyY: 0.8, cabinLen: 2.7, cabinH: 1.0, cabinX: 0.1, wheelR: 0.46 },
+  { id: 'pickup', length: 4.4, width: 1.96, bodyH: 0.8, bodyY: 0.72, cabinLen: 1.5, cabinH: 0.95, cabinX: 0.55, wheelR: 0.48 },
+];
+
+export function makeCar(color: number, shape: CarShape = CAR_SHAPES[0]): CarMesh {
   const group = new THREE.Group();
+  const hl = shape.length / 2;
 
   const bodyMat = new THREE.MeshStandardMaterial({ color, metalness: 0.5, roughness: 0.4 });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(4, 0.7, 1.9), bodyMat);
-  body.position.y = 0.65;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(shape.length, shape.bodyH, shape.width), bodyMat);
+  body.position.y = shape.bodyY;
   body.castShadow = true;
   group.add(body);
 
   const cabin = new THREE.Mesh(
-    new THREE.BoxGeometry(2.1, 0.7, 1.6),
+    new THREE.BoxGeometry(shape.cabinLen, shape.cabinH, shape.width - 0.3),
     new THREE.MeshStandardMaterial({ color: 0x10131a, metalness: 0.2, roughness: 0.3 }),
   );
-  cabin.position.set(-0.2, 1.2, 0);
+  cabin.position.set(shape.cabinX, shape.bodyY + shape.bodyH / 2 + shape.cabinH / 2, 0);
   cabin.castShadow = true;
   group.add(cabin);
 
-  const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 14);
+  const wheelGeo = new THREE.CylinderGeometry(shape.wheelR, shape.wheelR, 0.35, 14);
   wheelGeo.rotateX(Math.PI / 2); // roll axis -> Z (the car's lateral axis)
   const wheelMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.9 });
+  const axle = shape.length * 0.32;
+  const track = shape.width / 2;
   const steerWheels: THREE.Object3D[] = [];
-  for (const wx of [1.3, -1.3]) {
-    for (const wz of [0.95, -0.95]) {
+  for (const wx of [axle, -axle]) {
+    for (const wz of [track, -track]) {
       const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-      wheel.position.set(wx, 0.45, wz);
+      wheel.position.set(wx, shape.wheelR, wz);
       wheel.castShadow = true;
       group.add(wheel);
       if (wx > 0) steerWheels.push(wheel);
@@ -156,11 +196,11 @@ export function makeCar(color: number): CarMesh {
   const head = new THREE.MeshStandardMaterial({ color: 0xfff2cc, emissive: 0xfff0c0, emissiveIntensity: 2 });
   const tail = new THREE.MeshStandardMaterial({ color: 0x551015, emissive: 0xff2030, emissiveIntensity: 1.4 });
   for (const lz of [0.6, -0.6]) {
-    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.25, 0.35), head);
-    hl.position.set(2.0, 0.6, lz);
-    group.add(hl);
+    const hlMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.25, 0.35), head);
+    hlMesh.position.set(hl, shape.bodyY - 0.05, lz);
+    group.add(hlMesh);
     const tl = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.25, 0.35), tail);
-    tl.position.set(-2.0, 0.6, lz);
+    tl.position.set(-hl, shape.bodyY - 0.05, lz);
     group.add(tl);
   }
 

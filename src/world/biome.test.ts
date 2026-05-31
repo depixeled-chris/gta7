@@ -46,5 +46,12 @@ describe('BIOMES table', () => {
   it('water is empty', () => {
     expect(BIOMES.water.buildingDensity).toBe(0);
     expect(BIOMES.water.palette).toHaveLength(0);
+    expect(BIOMES.water.facades).toHaveLength(0);
+  });
+
+  it('every buildable biome offers at least one facade style', () => {
+    for (const id of Object.keys(BIOMES) as BiomeId[]) {
+      if (BIOMES[id].buildingDensity > 0) expect(BIOMES[id].facades.length).toBeGreaterThan(0);
+    }
   });
 });
