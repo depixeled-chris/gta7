@@ -1,11 +1,22 @@
 import * as THREE from 'three';
 import { lerp } from '../core/math';
+import { World, defineComponent } from '../ecs/World';
 
-interface Piece {
-  mesh: THREE.Mesh;
-  mat: THREE.MeshStandardMaterial;
+/**
+ * Pooled "block part" gibs/wreck chunks: a batch of cubes flung from an impact,
+ * falling under gravity, bouncing once, fading back into the pool.
+ *
+ * This is the first system migrated onto the ECS (see
+ * docs/research/ecs-architecture.md) — behind the same public API
+ * (burst/explode/update/render) so its callers are untouched. Internally each
+ * live cube is an entity with a `DebrisPiece` data component and a `DebrisMesh`
+ * render component; `update`/`render` are ECS systems. The THREE meshes are
+ * pooled (a free-list) and only their state lives in the ECS — proving the
+ * data-vs-render-mesh split and the update/interpolated-render stages in-engine.
+ * Purely visual, so it uses Math.random.
+ */
+interface PieceData {
   size: number;
-  active: boolean;
   life: number;
   x: number;
   y: number;
@@ -20,6 +31,13 @@ interface Piece {
   spinX: number;
   spinZ: number;
 }
+interface MeshRef {
+  mesh: THREE.Mesh;
+  mat: THREE.MeshStandardMaterial;
+}
+
+const DebrisPiece = defineComponent<PieceData>('DebrisPiece');
+const DebrisMesh = defineComponent<MeshRef>('DebrisMesh');
 
 const POOL = 120;
 const PER_BURST = 12;
@@ -29,14 +47,9 @@ const GRAVITY = 20;
 const SKIN = 0xd8b48a;
 const DARK = 0x2a2a2a;
 
-/**
- * A shared pool of little cubes. When a pedestrian is run over they "explode
- * into tiny block parts" — a batch of pieces is flung from the impact point,
- * falls under gravity, bounces once, and fades back into the pool. Pure visual
- * flair, so it uses Math.random and is interpolated for smoothness.
- */
 export class Debris {
-  private readonly pieces: Piece[] = [];
+  private readonly world = new World();
+  private readonly free: MeshRef[] = []; // pooled meshes not currently in use
 
   constructor(scene: THREE.Scene) {
     const geo = new THREE.BoxGeometry(1, 1, 1);
@@ -46,34 +59,34 @@ export class Debris {
       mesh.castShadow = true;
       mesh.visible = false;
       scene.add(mesh);
-      this.pieces.push({
-        mesh, mat, size: 0.2, active: false, life: 0,
-        x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, px: 0, py: 0, pz: 0, spinX: 0, spinZ: 0,
-      });
+      this.free.push({ mesh, mat });
     }
+    this.world.addSystem('update', (w, dt) => this.step(w, dt));
+    this.world.addSystem('render', (w, alpha) => this.draw(w, alpha));
   }
 
   /** Spew a batch of cubes from (x,z), carrying some of the car's momentum. */
   burst(x: number, z: number, shirt: number, carVx: number, carVz: number): void {
-    let spawned = 0;
-    for (const p of this.pieces) {
-      if (p.active) continue;
+    for (let n = 0; n < PER_BURST; n++) {
+      const ref = this.free.pop();
+      if (!ref) break;
       const size = 0.14 + Math.random() * 0.16;
-      p.active = true;
-      p.life = LIFE;
-      p.size = size;
-      p.x = p.px = x + (Math.random() - 0.5) * 0.6;
-      p.y = p.py = 0.4 + Math.random() * 0.9;
-      p.z = p.pz = z + (Math.random() - 0.5) * 0.6;
-      p.vx = carVx * 0.35 + (Math.random() - 0.5) * 7;
-      p.vz = carVz * 0.35 + (Math.random() - 0.5) * 7;
-      p.vy = 3 + Math.random() * 5;
-      p.spinX = (Math.random() - 0.5) * 16;
-      p.spinZ = (Math.random() - 0.5) * 16;
-      p.mat.color.setHex(Math.random() < 0.25 ? SKIN : Math.random() < 0.3 ? DARK : shirt);
-      p.mesh.scale.setScalar(size);
-      p.mesh.visible = true;
-      if (++spawned >= PER_BURST) break;
+      ref.mat.color.setHex(Math.random() < 0.25 ? SKIN : Math.random() < 0.3 ? DARK : shirt);
+      ref.mesh.scale.setScalar(size);
+      ref.mesh.visible = true;
+      const px = x + (Math.random() - 0.5) * 0.6;
+      const py = 0.4 + Math.random() * 0.9;
+      const pz = z + (Math.random() - 0.5) * 0.6;
+      const e = this.world.create();
+      this.world.add(e, DebrisMesh, ref);
+      this.world.add(e, DebrisPiece, {
+        size, life: LIFE, x: px, y: py, z: pz, px, py, pz,
+        vx: carVx * 0.35 + (Math.random() - 0.5) * 7,
+        vz: carVz * 0.35 + (Math.random() - 0.5) * 7,
+        vy: 3 + Math.random() * 5,
+        spinX: (Math.random() - 0.5) * 16,
+        spinZ: (Math.random() - 0.5) * 16,
+      });
     }
   }
 
@@ -83,31 +96,41 @@ export class Debris {
    */
   explode(x: number, z: number, body: number, carVx: number, carVz: number): void {
     const EMBER = 0xff6a1a;
-    let spawned = 0;
-    for (const p of this.pieces) {
-      if (p.active) continue;
+    for (let n = 0; n < PER_BURST * 2; n++) {
+      const ref = this.free.pop();
+      if (!ref) break;
       const size = 0.3 + Math.random() * 0.5;
-      p.active = true;
-      p.life = LIFE;
-      p.size = size;
-      p.x = p.px = x + (Math.random() - 0.5) * 1.4;
-      p.y = p.py = 0.6 + Math.random() * 1.4;
-      p.z = p.pz = z + (Math.random() - 0.5) * 1.4;
-      p.vx = carVx * 0.4 + (Math.random() - 0.5) * 12;
-      p.vz = carVz * 0.4 + (Math.random() - 0.5) * 12;
-      p.vy = 6 + Math.random() * 8;
-      p.spinX = (Math.random() - 0.5) * 20;
-      p.spinZ = (Math.random() - 0.5) * 20;
-      p.mat.color.setHex(Math.random() < 0.4 ? EMBER : Math.random() < 0.3 ? DARK : body);
-      p.mesh.scale.setScalar(size);
-      p.mesh.visible = true;
-      if (++spawned >= PER_BURST * 2) break;
+      ref.mat.color.setHex(Math.random() < 0.4 ? EMBER : Math.random() < 0.3 ? DARK : body);
+      ref.mesh.scale.setScalar(size);
+      ref.mesh.visible = true;
+      const px = x + (Math.random() - 0.5) * 1.4;
+      const py = 0.6 + Math.random() * 1.4;
+      const pz = z + (Math.random() - 0.5) * 1.4;
+      const e = this.world.create();
+      this.world.add(e, DebrisMesh, ref);
+      this.world.add(e, DebrisPiece, {
+        size, life: LIFE, x: px, y: py, z: pz, px, py, pz,
+        vx: carVx * 0.4 + (Math.random() - 0.5) * 12,
+        vz: carVz * 0.4 + (Math.random() - 0.5) * 12,
+        vy: 6 + Math.random() * 8,
+        spinX: (Math.random() - 0.5) * 20,
+        spinZ: (Math.random() - 0.5) * 20,
+      });
     }
   }
 
   update(dt: number): void {
-    for (const p of this.pieces) {
-      if (!p.active) continue;
+    this.world.update(dt);
+  }
+
+  render(alpha: number): void {
+    this.world.render(alpha);
+  }
+
+  /** Update system: integrate motion, bounce, spin, and recycle dead pieces. */
+  private step(w: World, dt: number): void {
+    for (const e of w.query(DebrisPiece)) {
+      const p = w.get(e, DebrisPiece)!;
       p.px = p.x;
       p.py = p.y;
       p.pz = p.z;
@@ -126,21 +149,30 @@ export class Debris {
         if (Math.abs(p.vy) < 0.6) p.vy = 0;
       }
 
-      p.mesh.rotation.x += p.spinX * dt;
-      p.mesh.rotation.z += p.spinZ * dt;
+      const ref = w.get(e, DebrisMesh)!;
+      ref.mesh.rotation.x += p.spinX * dt;
+      ref.mesh.rotation.z += p.spinZ * dt;
 
       p.life -= dt;
       if (p.life <= 0) {
-        p.active = false;
-        p.mesh.visible = false;
+        ref.mesh.visible = false;
+        this.free.push(ref); // return the mesh to the pool
+        w.destroy(e);
       }
     }
   }
 
-  render(alpha: number): void {
-    for (const p of this.pieces) {
-      if (!p.active) continue;
-      p.mesh.position.set(lerp(p.px, p.x, alpha), lerp(p.py, p.y, alpha), lerp(p.pz, p.z, alpha));
+  /** Render system: position each cube, interpolated between physics steps. */
+  private draw(w: World, alpha: number): void {
+    for (const e of w.query(DebrisPiece, DebrisMesh)) {
+      const p = w.get(e, DebrisPiece)!;
+      const ref = w.get(e, DebrisMesh)!;
+      ref.mesh.position.set(lerp(p.px, p.x, alpha), lerp(p.py, p.y, alpha), lerp(p.pz, p.z, alpha));
     }
+  }
+
+  /** Live piece count (debug/telemetry). */
+  count(): number {
+    return this.world.entityCount();
   }
 }
