@@ -87,6 +87,24 @@ describe('generateChunk', () => {
   });
 });
 
+describe('biome-driven variety', () => {
+  it('spans a wide height range — dense tall cores AND low outskirts', () => {
+    const city = generateCity(DEFAULT_CITY);
+    const heights = city.buildings.map((b) => b.height);
+    const tall = heights.filter((h) => h >= 40).length; // core-scale
+    const low = heights.filter((h) => h <= 20).length; // suburb/rural-scale
+    expect(tall).toBeGreaterThan(0);
+    expect(low).toBeGreaterThan(0);
+  });
+
+  it('uses more than one biome palette across the city', () => {
+    const city = generateCity(DEFAULT_CITY);
+    const colors = new Set(city.buildings.map((b) => b.color));
+    // A single biome has 4 tints; spanning biomes yields more distinct colours.
+    expect(colors.size).toBeGreaterThan(4);
+  });
+});
+
 describe('parking', () => {
   it('generates curbside parking spots that never sit inside a building', () => {
     const city = generateCity(DEFAULT_CITY);

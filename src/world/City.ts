@@ -1,4 +1,6 @@
 import { createRng, hashSeed } from '../core/rng';
+import { makeNoise2D, fbm, type Noise2D } from '../core/noise';
+import { classify, BIOMES, type BiomeDef } from './biome';
 import type { Aabb } from '../systems/Collision';
 import { SpatialGrid } from '../systems/SpatialGrid';
 
@@ -73,6 +75,28 @@ function metrics(config: CityConfig): { cell: number; extent: number; half: numb
 }
 
 /**
+ * Continuous, seed-derived noise fields sampled at absolute world coordinates.
+ * Because every chunk samples the same fields at the same world point, the
+ * biome gradient is continuous across chunk seams for free. Created once per
+ * world and shared across chunks (elevation/water join in a later phase).
+ */
+export interface WorldFields {
+  urbanity: Noise2D;
+}
+
+export function makeWorldFields(seed: number): WorldFields {
+  return { urbanity: makeNoise2D(hashSeed(seed, 'urbanity')) };
+}
+
+const URBANITY_FREQ = 0.012; // a few districts span the current finite city
+
+/** Normalized urbanity (0–1) at a world point — drives the city→rural gradient. */
+export function urbanityAt(fields: WorldFields, wx: number, wz: number): number {
+  const n = fbm(fields.urbanity, wx, wz, { octaves: 4, frequency: URBANITY_FREQ });
+  return Math.max(0, Math.min(1, 0.5 + n * 1.35)); // contrast-stretch toward the extremes
+}
+
+/**
  * Generate one chunk's worth of buildings + colliders: the blocks in the square
  * [cx,cz] of `chunkBlocks×chunkBlocks` blocks, in world coordinates. Seeded by
  * `hashSeed(seed, cx, cz)`, so a chunk is identical regardless of when/how it's
@@ -83,6 +107,7 @@ export function generateChunk(
   cx: number,
   cz: number,
   config: CityConfig = DEFAULT_CITY,
+  fields: WorldFields = makeWorldFields(config.seed),
 ): { buildings: Building[]; colliders: Aabb[] } {
   const { grid, blockSize, roadWidth, chunkBlocks } = config;
   const { cell, half } = metrics(config);
@@ -97,14 +122,15 @@ export function generateChunk(
       if (gi >= grid || gj >= grid) continue;
       const blockX = gi * cell + roadWidth - half;
       const blockZ = gj * cell + roadWidth - half;
-      addBlock(blockX, blockZ, blockSize, rng, buildings, colliders);
+      // The biome at this block sets its building density, height and palette.
+      const u = urbanityAt(fields, blockX + blockSize / 2, blockZ + blockSize / 2);
+      const biome = BIOMES[classify(u, 1)]; // elevation=1 (dry) until water lands
+      addBlock(blockX, blockZ, blockSize, rng, biome, buildings, colliders);
     }
   }
   return { buildings, colliders };
 }
 
-// Dusk-city facade palette: muted concrete and glass tones.
-const PALETTE = [0x3b4252, 0x434c5e, 0x4c566a, 0x2e3440, 0x5e6472, 0x39414f];
 
 export function generateCity(config: CityConfig = DEFAULT_CITY): City {
   const { grid, blockSize, roadWidth, chunkBlocks } = config;
@@ -120,10 +146,11 @@ export function generateCity(config: CityConfig = DEFAULT_CITY): City {
   // streamed world will load on demand), so the finite city is just chunk (0,0)..(n,n).
   const buildings: Building[] = [];
   const colliders: Aabb[] = [];
+  const fields = makeWorldFields(config.seed); // built once, shared across chunks
   const chunksPerSide = Math.ceil(grid / chunkBlocks);
   for (let cx = 0; cx < chunksPerSide; cx++) {
     for (let cz = 0; cz < chunksPerSide; cz++) {
-      const chunk = generateChunk(cx, cz, config);
+      const chunk = generateChunk(cx, cz, config, fields);
       buildings.push(...chunk.buildings);
       colliders.push(...chunk.colliders);
     }
@@ -161,17 +188,23 @@ function addBlock(
   originZ: number,
   size: number,
   rng: ReturnType<typeof createRng>,
+  biome: BiomeDef,
   buildings: Building[],
   colliders: Aabb[],
 ): void {
+  if (biome.buildingDensity <= 0) return; // e.g. water — nothing built here
+
   const margin = 3; // sidewalk gap between facade and curb
-  // Each block is split into a 1x1 or 2x2 set of lots for visual variety.
-  const lots = rng.chance(0.55) ? 2 : 1;
+  // Denser biomes subdivide into more, smaller lots; sparse biomes stay open.
+  const lots = rng.chance(0.3 + biome.buildingDensity * 0.5) ? 2 : 1;
   const lotSize = size / lots;
+  const [hMin, hMax] = biome.heightRange;
 
   for (let li = 0; li < lots; li++) {
     for (let lj = 0; lj < lots; lj++) {
-      if (lots === 2 && rng.chance(0.12)) continue; // occasional empty lot / plaza
+      // The biome's density is the per-lot occupancy: rural blocks are mostly
+      // empty, cores almost fully built.
+      if (!rng.chance(biome.buildingDensity)) continue;
 
       const lotX = originX + li * lotSize;
       const lotZ = originZ + lj * lotSize;
@@ -181,28 +214,13 @@ function addBlock(
 
       const cx = lotX + lotSize / 2;
       const cz = lotZ + lotSize / 2;
-      const tall = rng.chance(0.18);
-      const height = tall
-        ? rng.range(40, 95) // skyscrapers punctuate the skyline
-        : rng.range(8, 28);
+      const height = rng.range(hMin, hMax);
 
-      buildings.push({
-        cx,
-        cz,
-        width,
-        depth,
-        height,
-        color: rng.pick(PALETTE),
-      });
+      buildings.push({ cx, cz, width, depth, height, color: rng.pick(biome.palette) });
 
       const hw = width / 2;
       const hd = depth / 2;
-      colliders.push({
-        minX: cx - hw,
-        minZ: cz - hd,
-        maxX: cx + hw,
-        maxZ: cz + hd,
-      });
+      colliders.push({ minX: cx - hw, minZ: cz - hd, maxX: cx + hw, maxZ: cz + hd });
     }
   }
 }
