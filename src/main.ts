@@ -40,6 +40,7 @@ const env = new SceneEnv(
 const assets = new CityAssets(city.config.seed);
 city.buildings.forEach((b, i) => env.scene.add(assets.makeBuilding(b, i)));
 city.streetlights.forEach((s) => env.scene.add(assets.makeStreetlight(s)));
+env.scene.add(assets.makeProps(city.props));
 
 const avatar = makePed(0x2266dd);
 env.scene.add(avatar);

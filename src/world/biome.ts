@@ -14,6 +14,9 @@ export type BiomeId = 'water' | 'rural' | 'suburb' | 'urban' | 'urbanCore';
 /** Facade texture family — picked per building so a biome isn't all glass towers. */
 export type FacadeStyle = 'glass' | 'brick' | 'concrete';
 
+/** Sidewalk dressing placed along block edges. */
+export type PropType = 'tree' | 'hydrant' | 'bench';
+
 export interface BiomeDef {
   id: BiomeId;
   buildingDensity: number; // per-lot spawn probability (0–1)
@@ -23,6 +26,8 @@ export interface BiomeDef {
   pedDensity: number; // 0–1, relative ambient pedestrian count
   palette: number[]; // facade tints for this biome
   facades: FacadeStyle[]; // facade texture families that appear here
+  propDensity: number; // 0–1 chance of a prop at each sidewalk slot
+  props: PropType[]; // street dressing that appears here
 }
 
 /**
@@ -47,6 +52,8 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
     pedDensity: 0,
     palette: [],
     facades: [],
+    propDensity: 0,
+    props: [],
   },
   rural: {
     id: 'rural',
@@ -57,6 +64,8 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
     pedDensity: 0.1,
     palette: [0x6b5d4f, 0x7a6a55, 0x5e5346, 0x837256],
     facades: ['brick'], // low houses/barns
+    propDensity: 0.55,
+    props: ['tree'], // leafy
   },
   suburb: {
     id: 'suburb',
@@ -67,6 +76,8 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
     pedDensity: 0.4,
     palette: [0x8a8f9c, 0x9aa0ad, 0x7c828f, 0xa79f95],
     facades: ['brick', 'concrete'], // houses + small commercial
+    propDensity: 0.45,
+    props: ['tree', 'hydrant'],
   },
   urban: {
     id: 'urban',
@@ -77,6 +88,8 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
     pedDensity: 0.8,
     palette: [0x3b4252, 0x434c5e, 0x4c566a, 0x5e6472],
     facades: ['glass', 'concrete'], // mid-rise offices + towers
+    propDensity: 0.35,
+    props: ['hydrant', 'bench', 'tree'],
   },
   urbanCore: {
     id: 'urbanCore',
@@ -87,6 +100,8 @@ export const BIOMES: Record<BiomeId, BiomeDef> = {
     pedDensity: 1,
     palette: [0x2e3440, 0x39414f, 0x3b4252, 0x2b3a55],
     facades: ['glass'], // glass skyscrapers
+    propDensity: 0.35,
+    props: ['hydrant', 'bench'],
   },
 };
 

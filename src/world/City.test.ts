@@ -111,6 +111,28 @@ describe('biome-driven variety', () => {
   });
 });
 
+describe('street props', () => {
+  it('places sidewalk props that never sit inside a building', () => {
+    const city = generateCity(DEFAULT_CITY);
+    expect(city.props.length).toBeGreaterThan(0);
+    for (const p of city.props) {
+      for (const c of city.colliders) {
+        const inside = p.x > c.minX && p.x < c.maxX && p.z > c.minZ && p.z < c.maxZ;
+        expect(inside).toBe(false);
+      }
+    }
+  });
+
+  it('uses more than one prop type across the city', () => {
+    const types = new Set(generateCity(DEFAULT_CITY).props.map((p) => p.type));
+    expect(types.size).toBeGreaterThan(1);
+  });
+
+  it('is deterministic', () => {
+    expect(generateCity(DEFAULT_CITY).props).toEqual(generateCity(DEFAULT_CITY).props);
+  });
+});
+
 describe('parking', () => {
   it('generates curbside parking spots that never sit inside a building', () => {
     const city = generateCity(DEFAULT_CITY);

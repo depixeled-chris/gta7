@@ -47,6 +47,7 @@ describe('BIOMES table', () => {
     expect(BIOMES.water.buildingDensity).toBe(0);
     expect(BIOMES.water.palette).toHaveLength(0);
     expect(BIOMES.water.facades).toHaveLength(0);
+    expect(BIOMES.water.props).toHaveLength(0);
   });
 
   it('every buildable biome offers at least one facade style', () => {

@@ -1,6 +1,6 @@
 import { createRng, hashSeed } from '../core/rng';
 import { makeNoise2D, fbm, type Noise2D } from '../core/noise';
-import { classify, BIOMES, type BiomeDef, type FacadeStyle } from './biome';
+import { classify, BIOMES, type BiomeDef, type FacadeStyle, type PropType } from './biome';
 import type { Aabb } from '../systems/Collision';
 import { SpatialGrid } from '../systems/SpatialGrid';
 
@@ -25,6 +25,14 @@ export interface Lane {
 export interface Streetlight {
   x: number;
   z: number;
+}
+
+/** A sidewalk prop (tree / hydrant / bench) at a ground point. */
+export interface Prop {
+  x: number;
+  z: number;
+  type: PropType;
+  rot: number; // facing (radians) — matters for benches
 }
 
 /** A curbside parking spot: where a parked car sits and which way it faces. */
@@ -55,6 +63,7 @@ export interface City {
   grid: SpatialGrid;
   lanes: Lane[];
   streetlights: Streetlight[];
+  props: Prop[];
   parkingSpots: ParkingSpot[];
   /** A road intersection near the middle — a good place to spawn the player. */
   center: { x: number; z: number };
@@ -109,12 +118,13 @@ export function generateChunk(
   cz: number,
   config: CityConfig = DEFAULT_CITY,
   fields: WorldFields = makeWorldFields(config.seed),
-): { buildings: Building[]; colliders: Aabb[] } {
+): { buildings: Building[]; colliders: Aabb[]; props: Prop[] } {
   const { grid, blockSize, roadWidth, chunkBlocks } = config;
   const { cell, half } = metrics(config);
   const rng = createRng(hashSeed(config.seed, cx, cz));
   const buildings: Building[] = [];
   const colliders: Aabb[] = [];
+  const props: Prop[] = [];
 
   for (let bi = 0; bi < chunkBlocks; bi++) {
     for (let bj = 0; bj < chunkBlocks; bj++) {
@@ -127,9 +137,10 @@ export function generateChunk(
       const u = urbanityAt(fields, blockX + blockSize / 2, blockZ + blockSize / 2);
       const biome = BIOMES[classify(u, 1)]; // elevation=1 (dry) until water lands
       addBlock(blockX, blockZ, blockSize, rng, biome, buildings, colliders);
+      addProps(blockX, blockZ, blockSize, rng, biome, colliders, props);
     }
   }
-  return { buildings, colliders };
+  return { buildings, colliders, props };
 }
 
 
@@ -147,6 +158,7 @@ export function generateCity(config: CityConfig = DEFAULT_CITY): City {
   // streamed world will load on demand), so the finite city is just chunk (0,0)..(n,n).
   const buildings: Building[] = [];
   const colliders: Aabb[] = [];
+  const props: Prop[] = [];
   const fields = makeWorldFields(config.seed); // built once, shared across chunks
   const chunksPerSide = Math.ceil(grid / chunkBlocks);
   for (let cx = 0; cx < chunksPerSide; cx++) {
@@ -154,6 +166,7 @@ export function generateCity(config: CityConfig = DEFAULT_CITY): City {
       const chunk = generateChunk(cx, cz, config, fields);
       buildings.push(...chunk.buildings);
       colliders.push(...chunk.colliders);
+      props.push(...chunk.props);
     }
   }
 
@@ -179,6 +192,7 @@ export function generateCity(config: CityConfig = DEFAULT_CITY): City {
     grid: new SpatialGrid(colliders, cell),
     lanes,
     streetlights,
+    props,
     parkingSpots,
     center: { x: mid, z: mid },
   };
@@ -223,6 +237,43 @@ function addBlock(
       const hw = width / 2;
       const hd = depth / 2;
       colliders.push({ minX: cx - hw, minZ: cz - hd, maxX: cx + hw, maxZ: cz + hd });
+    }
+  }
+}
+
+/**
+ * Scatter sidewalk props along a block's perimeter (inset onto the sidewalk
+ * strip, clear of the road and of building footprints). Biome sets how many and
+ * which kinds. Corners are skipped so props don't land in road intersections.
+ */
+function addProps(
+  originX: number,
+  originZ: number,
+  size: number,
+  rng: ReturnType<typeof createRng>,
+  biome: BiomeDef,
+  colliders: Aabb[],
+  props: Prop[],
+): void {
+  if (biome.propDensity <= 0 || biome.props.length === 0) return;
+  const inset = 1.6; // onto the sidewalk, between curb and building line
+  const slots = Math.max(2, Math.floor(size / 9)); // ~9 m spacing along an edge
+  const span = size - inset * 2;
+
+  for (let edge = 0; edge < 4; edge++) {
+    for (let k = 1; k < slots; k++) {
+      if (!rng.chance(biome.propDensity)) continue;
+      const t = (k / slots) * span + inset;
+      let x: number;
+      let z: number;
+      if (edge === 0) { x = originX + inset; z = originZ + t; }
+      else if (edge === 1) { x = originX + size - inset; z = originZ + t; }
+      else if (edge === 2) { x = originX + t; z = originZ + inset; }
+      else { x = originX + t; z = originZ + size - inset; }
+      x += rng.range(-0.8, 0.8);
+      z += rng.range(-0.8, 0.8);
+      if (insideAnyCollider(x, z, colliders, 0.6)) continue;
+      props.push({ x, z, type: rng.pick(biome.props), rot: rng.range(0, Math.PI * 2) });
     }
   }
 }

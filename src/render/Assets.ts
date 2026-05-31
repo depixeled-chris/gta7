@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import type { Building, Streetlight } from '../world/City';
-import type { FacadeStyle } from '../world/biome';
+import type { Building, Streetlight, Prop } from '../world/City';
+import type { FacadeStyle, PropType } from '../world/biome';
 import { makeFacadeTexture, makeGlowTexture } from './textures';
 
 const LAMP_HEIGHT = 5.2;
@@ -33,6 +33,10 @@ export class CityAssets {
   });
   private readonly poolMat: THREE.Material;
 
+  // Shared prototype geometry+material per prop type; each geometry is shifted so
+  // its base sits at y=0, so an instance matrix only needs world x/z + rotation.
+  private readonly propProto: Record<PropType, { geo: THREE.BufferGeometry; mat: THREE.Material }>;
+
   constructor(seed: number, variants = 3) {
     // A small pool of texture variants per facade style; buildings draw from the
     // pool matching their biome-assigned style, so the skyline isn't all glass.
@@ -50,6 +54,43 @@ export class CityAssets {
       depthWrite: false,
       opacity: 0.9,
     });
+
+    const treeGeo = new THREE.ConeGeometry(1.15, 3.4, 8);
+    treeGeo.translate(0, 1.7, 0);
+    const hydrantGeo = new THREE.BoxGeometry(0.45, 0.9, 0.45);
+    hydrantGeo.translate(0, 0.45, 0);
+    const benchGeo = new THREE.BoxGeometry(1.6, 0.5, 0.5);
+    benchGeo.translate(0, 0.25, 0);
+    this.propProto = {
+      tree: { geo: treeGeo, mat: new THREE.MeshStandardMaterial({ color: 0x2f5d3a, roughness: 0.9 }) },
+      hydrant: { geo: hydrantGeo, mat: new THREE.MeshStandardMaterial({ color: 0xb5402f, roughness: 0.6 }) },
+      bench: { geo: benchGeo, mat: new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.8, metalness: 0.3 }) },
+    };
+  }
+
+  /** One InstancedMesh per prop type (a few draw calls for the whole map). */
+  makeProps(props: Prop[]): THREE.Group {
+    const group = new THREE.Group();
+    const byType: Record<PropType, Prop[]> = { tree: [], hydrant: [], bench: [] };
+    for (const p of props) byType[p.type].push(p);
+
+    const dummy = new THREE.Object3D();
+    for (const type of Object.keys(byType) as PropType[]) {
+      const list = byType[type];
+      if (list.length === 0) continue;
+      const { geo, mat } = this.propProto[type];
+      const inst = new THREE.InstancedMesh(geo, mat, list.length);
+      inst.castShadow = true;
+      list.forEach((p, i) => {
+        dummy.position.set(p.x, 0, p.z);
+        dummy.rotation.set(0, p.rot, 0);
+        dummy.updateMatrix();
+        inst.setMatrixAt(i, dummy.matrix);
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      group.add(inst);
+    }
+    return group;
   }
 
   makeStreetlight(s: Streetlight): THREE.Group {
@@ -117,7 +158,11 @@ function scaleFacadeUvs(geo: THREE.BoxGeometry, w: number, h: number, d: number)
       uv.array[base + i * 2 + 1] *= sv;
     }
   };
-  const ru = (n: number) => n / UV_TILE;
+  // Repeat a WHOLE number of tiles per face: a fractional repeat leaves a
+  // partial tile at the seam that slices windows in half (worst on the big,
+  // sparse brick facades). Rounding to integer tiles keeps every window intact;
+  // window size then varies slightly per building, which reads fine.
+  const ru = (n: number) => Math.max(1, Math.round(n / UV_TILE));
   set(0, ru(d), ru(h)); // +X
   set(1, ru(d), ru(h)); // -X
   set(2, 0, 0); // +Y roof
