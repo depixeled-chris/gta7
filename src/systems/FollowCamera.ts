@@ -1,17 +1,9 @@
 import * as THREE from 'three';
 import { damp } from '../core/math';
+import { followDistance, lookLead, type FollowParams } from '../core/followCam';
 
-export interface FollowParams {
-  distance: number;
-  height: number;
-  lookHeight: number;
-  stiffness: number; // higher = snappier
-  speedPull?: number; // metres of distance pulled IN per m/s of speed (lag comp)
-}
+export type { FollowParams };
 
-// A damped chase cam trailing a fast target settles at extra distance ≈ speed/
-// stiffness, which reads as "zooming out" at speed. `speedPull` leads the target
-// to cancel most of that lag so the framing stays roughly constant.
 export const CAR_CAM: FollowParams = { distance: 9, height: 4.2, lookHeight: 1.4, stiffness: 4, speedPull: 0.16 };
 export const FOOT_CAM: FollowParams = { distance: 5, height: 3, lookHeight: 1.4, stiffness: 7 };
 
@@ -31,7 +23,7 @@ export class FollowCamera {
     const fz = -Math.sin(heading);
 
     // Pull the camera in as speed rises so damping lag doesn't widen the framing.
-    const dist = Math.max(p.distance * 0.5, p.distance - speed * (p.speedPull ?? 0));
+    const dist = followDistance(p, speed);
     const desiredX = x - fx * dist;
     const desiredZ = z - fz * dist;
 
@@ -39,9 +31,12 @@ export class FollowCamera {
     this.camera.position.y = damp(this.camera.position.y, p.height, p.stiffness, dt);
     this.camera.position.z = damp(this.camera.position.z, desiredZ, p.stiffness, dt);
 
-    this.look.x = damp(this.look.x, x, p.stiffness, dt);
+    // Lead the look-at along travel by the damping lag, so the car stays centred
+    // instead of climbing toward the top of the screen as speed rises.
+    const lead = lookLead(p, speed);
+    this.look.x = damp(this.look.x, x + fx * lead, p.stiffness, dt);
     this.look.y = damp(this.look.y, p.lookHeight, p.stiffness, dt);
-    this.look.z = damp(this.look.z, z, p.stiffness, dt);
+    this.look.z = damp(this.look.z, z + fz * lead, p.stiffness, dt);
     this.camera.lookAt(this.look);
   }
 
