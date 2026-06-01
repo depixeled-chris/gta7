@@ -1,7 +1,7 @@
 import { SpatialGrid } from '../systems/SpatialGrid';
 import { ChunkManager } from '../systems/ChunkManager';
 import { cellOf, chunkKey, generateChunk, makeWorldFields, type ChunkData } from './streaming';
-import type { CityConfig, Streetlight, WorldFields } from './City';
+import type { City, CityConfig, Streetlight, WorldFields } from './City';
 import type { Aabb } from '../systems/Collision';
 
 /**
@@ -37,10 +37,13 @@ export class StreamedWorld {
   private liveStreetlights: Streetlight[] = [];
   private liveColliders: Aabb[] = [];
   private dirty = false;
+  /** Side length of the loaded window — used to size the render view (fog, shadow, ground). */
+  private readonly viewExtent: number;
 
   constructor(config: CityConfig, hooks: ChunkRenderHooks, loadRadius = 2, unloadRadius = 3) {
     this.config = config;
     this.fields = makeWorldFields(config.seed);
+    this.viewExtent = cellOf(config) * config.chunkBlocks * (2 * unloadRadius + 1);
     this.grid = new SpatialGrid([], cellOf(config));
     this.manager = new ChunkManager(
       config,
@@ -98,6 +101,39 @@ export class StreamedWorld {
 
   has(cx: number, cz: number): boolean {
     return this.loaded.has(chunkKey(cx, cz));
+  }
+
+  /**
+   * A `City`-shaped facade so the existing systems (Vehicles/Pedestrians/HUD/
+   * Scene) can read the streamed world. `colliders`/`streetlights` are live
+   * getters; `lanes`/`parkingSpots`/`roadCenters`/`buildings`/`props` are empty
+   * (traffic/peds/parking spawn player-relative in stream mode, and meshes come
+   * via the render hooks, not the up-front arrays); `half` is effectively
+   * unbounded so the finite clamps become no-ops; `extent` is the loaded-window
+   * size so Scene can size fog/shadows/ground (which then follow the player).
+   */
+  asCity(): City {
+    const self = this;
+    return {
+      config: this.config,
+      cell: cellOf(this.config),
+      extent: this.viewExtent,
+      half: 1e9,
+      roadCenters: [],
+      laneOffset: this.config.roadWidth / 4,
+      buildings: [],
+      props: [],
+      lanes: [],
+      parkingSpots: [],
+      center: this.center,
+      grid: this.grid,
+      get colliders() {
+        return self.liveColliders;
+      },
+      get streetlights() {
+        return self.liveStreetlights;
+      },
+    };
   }
 
   private rebuildAggregates(): void {

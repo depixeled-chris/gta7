@@ -3,6 +3,9 @@ import type { City } from '../world/City';
 export type Mode = 'driving' | 'foot';
 
 const MAP_SIZE = 190;
+// Streamed world: the minimap is a player-centred radar spanning this many metres
+// (the finite precomputed road/footprint map doesn't apply to an unbounded world).
+const STREAM_VIEW_METERS = 320;
 
 // Shared HUD design tokens so the widgets read as one designed overlay.
 const ACCENT = '#54a0ff';
@@ -30,9 +33,16 @@ export class HUD {
   private readonly carEl: HTMLElement;
   private readonly wantedEl: HTMLElement;
   private readonly clockEl: HTMLElement;
+  private viewX = 0; // streamed-radar centre (the player), set each update
+  private viewZ = 0;
 
-  constructor(container: HTMLElement, private readonly city: City, touch = false) {
-    this.toWorld = MAP_SIZE / city.extent;
+  constructor(
+    container: HTMLElement,
+    private readonly city: City,
+    touch = false,
+    private readonly streaming = false,
+  ) {
+    this.toWorld = streaming ? MAP_SIZE / STREAM_VIEW_METERS : MAP_SIZE / city.extent;
 
     const root = document.createElement('div');
     root.style.cssText =
@@ -148,15 +158,18 @@ export class HUD {
   }
 
   private mapX(wx: number): number {
-    return (wx + this.city.half) * this.toWorld;
+    return this.streaming ? MAP_SIZE / 2 + (wx - this.viewX) * this.toWorld : (wx + this.city.half) * this.toWorld;
   }
   private mapY(wz: number): number {
-    return (wz + this.city.half) * this.toWorld;
+    return this.streaming ? MAP_SIZE / 2 + (wz - this.viewZ) * this.toWorld : (wz + this.city.half) * this.toWorld;
   }
 
   private buildStaticMap(): HTMLCanvasElement {
     const c = document.createElement('canvas');
     c.width = c.height = MAP_SIZE;
+    // Streamed world: nothing precomputed — the radar redraws live each frame
+    // around the player (see update()).
+    if (this.streaming) return c;
     const ctx = c.getContext('2d')!;
 
     ctx.strokeStyle = 'rgba(120,140,180,.55)';
@@ -201,6 +214,10 @@ export class HUD {
 
     const ctx = this.mapCtx;
     ctx.clearRect(0, 0, MAP_SIZE, MAP_SIZE);
+    if (this.streaming) {
+      this.viewX = player.x; // centre the radar on the player
+      this.viewZ = player.z;
+    }
     ctx.drawImage(this.staticMap, 0, 0);
 
     ctx.fillStyle = '#ffd24a';

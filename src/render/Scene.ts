@@ -11,7 +11,12 @@ import type { City } from '../world/City';
 export interface SceneQuality {
   maxPixelRatio?: number; // cap device pixel ratio (lower = cheaper)
   shadowMapSize?: number; // directional shadow resolution
+  streaming?: boolean; // streamed world: ground/shadow/sun follow the player (R007)
 }
+
+// In streamed mode the shadow frustum is a tight window around the player rather
+// than the whole (unbounded) world.
+const STREAM_SHADOW_HALF = 90;
 
 // Night (t=0, the original look) ↔ day palette, lerped by the daylight factor.
 const NIGHT = {
@@ -36,10 +41,19 @@ export class SceneEnv {
   private sun!: THREE.DirectionalLight;
   private sunDisc!: THREE.Sprite;
   private sunRadius = 0;
+  private ground!: THREE.Mesh;
+  private readonly streaming: boolean;
+  private followX = 0;
+  private followZ = 0;
+  private readonly shadowHalf: number;
 
   constructor(container: HTMLElement, city: City, quality: SceneQuality = {}) {
     const maxPixelRatio = quality.maxPixelRatio ?? 2;
     const shadowMapSize = quality.shadowMapSize ?? 2048;
+    this.streaming = !!quality.streaming;
+    // Finite world: the shadow frustum spans the whole map. Streamed world: a
+    // tight window that follows the player (city.half is effectively unbounded).
+    this.shadowHalf = this.streaming ? STREAM_SHADOW_HALF : city.half;
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxPixelRatio));
@@ -65,7 +79,9 @@ export class SceneEnv {
 
     this.addLights(city, shadowMapSize);
     this.addGround(city);
-    this.addRoads(city);
+    // Streamed roads are everywhere (the grid between blocks); the finite per-
+    // roadCenter planes don't apply, so the ground reads as asphalt-dark instead.
+    if (!this.streaming) this.addRoads(city);
 
     window.addEventListener('resize', this.onResize);
     window.addEventListener('orientationchange', this.onResize);
@@ -83,10 +99,10 @@ export class SceneEnv {
     sun.castShadow = true;
     sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
     const cam = sun.shadow.camera;
-    cam.left = -city.half;
-    cam.right = city.half;
-    cam.top = city.half;
-    cam.bottom = -city.half;
+    cam.left = -this.shadowHalf;
+    cam.right = this.shadowHalf;
+    cam.top = this.shadowHalf;
+    cam.bottom = -this.shadowHalf;
     cam.near = 1;
     cam.far = city.extent * 2.5;
     sun.shadow.bias = -0.0006;
@@ -133,9 +149,17 @@ export class SceneEnv {
     this.sun.color.copy(mix(NIGHT.sun.color, DAY.sun.color));
     this.sun.intensity = lerpN(NIGHT.sun.intensity, DAY.sun.intensity);
 
-    // Sweep the light + disc along the day's arc (target stays at the origin).
+    // Sweep the light + disc along the day's arc. The target sits at the follow
+    // centre (origin in the finite world; the player in the streamed world), so
+    // the shadow frustum rides along instead of being left behind.
     const dir = sunPosition(t);
-    this.sun.position.set(dir.x * this.sunRadius, dir.y * this.sunRadius, dir.z * this.sunRadius);
+    this.sun.position.set(
+      this.followX + dir.x * this.sunRadius,
+      dir.y * this.sunRadius,
+      this.followZ + dir.z * this.sunRadius,
+    );
+    this.sun.target.position.set(this.followX, 0, this.followZ);
+    this.sun.target.updateMatrixWorld();
     this.sunDisc.position.copy(this.sun.position);
     // Warm sun by day, pale moon by night; never fully invisible.
     this.sunDisc.material.color.copy(mix(0xaec6ff, 0xfff1c4));
@@ -144,13 +168,28 @@ export class SceneEnv {
 
   private addGround(city: City): void {
     const size = city.extent * 2;
+    // In the streamed world the ground is asphalt-dark (it stands in for the
+    // road grid, which isn't drawn as planes) and follows the player.
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(size, size),
-      new THREE.MeshStandardMaterial({ color: 0x0c0e14, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: this.streaming ? 0x1a1e28 : 0x0c0e14, roughness: 1 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     this.scene.add(ground);
+    this.ground = ground;
+  }
+
+  /**
+   * Streamed world: recentre the ground + the shadow/sun window on the player so
+   * the lit, shadow-casting region travels with them (the sun is repositioned
+   * from these in `setTimeOfDay`, which runs every frame). No-op when finite.
+   */
+  follow(x: number, z: number): void {
+    if (!this.streaming) return;
+    this.followX = x;
+    this.followZ = z;
+    this.ground.position.set(x, 0, z);
   }
 
   private addRoads(city: City): void {

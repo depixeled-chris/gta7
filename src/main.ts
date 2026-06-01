@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { generateCity, DEFAULT_CITY } from './world/City';
+import { generateCity, DEFAULT_CITY, type City } from './world/City';
+import { StreamedWorld } from './world/StreamedWorld';
 import { SceneEnv } from './render/Scene';
 import { CityAssets, makePed } from './render/Assets';
 import { Player } from './entities/Player';
@@ -47,17 +48,57 @@ const urlParams = new URLSearchParams(location.search);
 const seedParam = Number(urlParams.get('seed'));
 const worldSeed = Number.isFinite(seedParam) && urlParams.get('seed') !== null ? seedParam : DEFAULT_CITY.seed;
 const gameMode = urlParams.get('mode') ?? 'explore'; // only 'explore' is playable yet
-const city = generateCity({ ...DEFAULT_CITY, seed: worldSeed });
+// `?stream=1` runs the unbounded streamed world (R007); default is the finite city.
+const streaming = urlParams.get('stream') === '1';
+const config = { ...DEFAULT_CITY, seed: worldSeed };
+const assets = new CityAssets(config.seed);
 
-const env = new SceneEnv(
-  container,
-  city,
-  touch ? { maxPixelRatio: 1.5, shadowMapSize: 1024 } : {},
-);
-const assets = new CityAssets(city.config.seed);
-city.buildings.forEach((b, i) => env.scene.add(assets.makeBuilding(b, i)));
-city.streetlights.forEach((s) => env.scene.add(assets.makeStreetlight(s)));
-env.scene.add(assets.makeProps(city.props));
+// In stream mode the world is built around the player on demand: each loaded
+// chunk becomes a Group of building/prop/streetlight meshes, added when the
+// chunk loads and removed when it unloads. Collision + lights read the live
+// StreamedWorld via its City facade.
+let streamedWorld: StreamedWorld | null = null;
+let city: City;
+if (streaming) {
+  const chunkGroups = new Map<string, THREE.Group>();
+  streamedWorld = new StreamedWorld(config, {
+    add: (cx, cz, data) => {
+      const g = new THREE.Group();
+      data.buildings.forEach((b, i) => g.add(assets.makeBuilding(b, i)));
+      if (data.props.length) g.add(assets.makeProps(data.props));
+      data.streetlights.forEach((s) => g.add(assets.makeStreetlight(s)));
+      chunkGroups.set(`${cx}:${cz}`, g);
+      env.scene.add(g);
+    },
+    remove: (cx, cz) => {
+      const k = `${cx}:${cz}`;
+      const g = chunkGroups.get(k);
+      // TODO(R007 follow-up): pool/dispose chunk geometry. For now we only detach
+      // (materials are shared via the asset cache; geometry GC's with the Group).
+      if (g) {
+        env.scene.remove(g);
+        chunkGroups.delete(k);
+      }
+    },
+  });
+  city = streamedWorld.asCity();
+} else {
+  city = generateCity(config);
+}
+
+const env = new SceneEnv(container, city, {
+  ...(touch ? { maxPixelRatio: 1.5, shadowMapSize: 1024 } : {}),
+  streaming,
+});
+
+if (streamedWorld) {
+  // env.scene now exists; load the initial ring around spawn (fires the hooks).
+  streamedWorld.update(city.center.x, city.center.z);
+} else {
+  city.buildings.forEach((b, i) => env.scene.add(assets.makeBuilding(b, i)));
+  city.streetlights.forEach((s) => env.scene.add(assets.makeStreetlight(s)));
+  env.scene.add(assets.makeProps(city.props));
+}
 
 const avatar = makePed(0x2266dd);
 env.scene.add(avatar);
@@ -74,7 +115,6 @@ const streetlightPool = Array.from({ length: STREETLIGHT_POOL }, () => {
   env.scene.add(l);
   return l;
 });
-const slOrder = city.streetlights.map((_, i) => i);
 
 // Twin headlight spots on the car you're driving; dark while on foot.
 const headlights = [0, 1].map(() => {
@@ -89,9 +129,11 @@ const headlights = [0, 1].map(() => {
 // and one shared Debris pool serves both car wrecks and pedestrian gibs.
 const world = new World();
 const debris = new Debris(env.scene, world);
-const vehicles = new Vehicles(env.scene, city, world, debris, touch ? 24 : 40);
-const peds = new Pedestrians(env.scene, city, world, debris, touch ? 28 : 60);
-const hud = new HUD(container, city, touch);
+// Stream mode (MVP): no ambient traffic/peds yet — they spawn player-relative in
+// a follow-up (Phase C). The player car still spawns at the origin intersection.
+const vehicles = new Vehicles(env.scene, city, world, debris, streaming ? 0 : touch ? 24 : 40);
+const peds = new Pedestrians(env.scene, city, world, debris, streaming ? 0 : touch ? 28 : 60);
+const hud = new HUD(container, city, touch, streaming);
 
 let touchRoot: HTMLElement | undefined;
 if (touch) {
@@ -357,6 +399,14 @@ function update(dt: number): void {
   player.savePrev();
   timeOfDay = (timeOfDay + dt / dayLength) % 1;
 
+  // Stream the world around the active position (car when driving, else avatar).
+  if (streamedWorld) {
+    const p = vehicles.playerPose();
+    const sx = mode === 'driving' && p ? p.x : player.x;
+    const sz = mode === 'driving' && p ? p.z : player.z;
+    streamedWorld.update(sx, sz);
+  }
+
   if (wasted || busted) {
     if (wasted) wastedTimer -= dt;
     else bustedTimer -= dt;
@@ -417,10 +467,13 @@ function update(dt: number): void {
 
 function updateStreetlightPool(ax: number, az: number): void {
   const sl = city.streetlights;
+  if (sl.length === 0) return;
+  // Nearest-first each call (the streamed set changes as chunks load/unload, so
+  // we can't keep a persistent index array).
   const d2 = (i: number): number => (sl[i].x - ax) ** 2 + (sl[i].z - az) ** 2;
-  slOrder.sort((a, b) => d2(a) - d2(b));
+  const order = sl.map((_, i) => i).sort((a, b) => d2(a) - d2(b));
   for (let i = 0; i < streetlightPool.length; i++) {
-    const s = sl[slOrder[i]];
+    const s = sl[order[Math.min(i, order.length - 1)]];
     streetlightPool[i].position.set(s.x, 4.8, s.z);
   }
 }
@@ -460,6 +513,7 @@ function render(alpha: number, frameDt: number): void {
   const carPose = vehicles.playerPoseInterp(alpha);
   const active =
     mode === 'driving' && carPose ? carPose : { x: ax, z: az, heading: ah, speed: player.speed };
+  env.follow(active.x, active.z); // streamed ground/shadow/sun ride the player (no-op when finite)
   lamp.position.set(active.x, 3.5, active.z);
   updateStreetlightPool(active.x, active.z);
   updateHeadlights(mode === 'driving' && carPose ? carPose : null);
