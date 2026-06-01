@@ -47,7 +47,9 @@ dayLength = options.dayLength;
 const urlParams = new URLSearchParams(location.search);
 const seedParam = Number(urlParams.get('seed'));
 const worldSeed = Number.isFinite(seedParam) && urlParams.get('seed') !== null ? seedParam : DEFAULT_CITY.seed;
-const gameMode = urlParams.get('mode') ?? 'explore'; // only 'explore' is playable yet
+// The menu has no mode selector — modes (e.g. delivery/racing) are triggered in-game from
+// free-roam activities, not chosen at boot. ?mode= still sets the boot mode for testing.
+const gameMode = urlParams.get('mode') ?? 'explore';
 // `?stream=1` runs the unbounded streamed world (R007); default is the finite city.
 const streaming = urlParams.get('stream') === '1';
 const config = { ...DEFAULT_CITY, seed: worldSeed };

@@ -11,6 +11,21 @@ import { type GameOptions, QUALITIES } from '../core/options';
  */
 export type MenuVariant = 'title' | 'pause';
 
+/**
+ * A selectable game mode, injected as data. The generic menu names no specific
+ * modes — the caller supplies the list. With ≤1 mode, no selector is rendered.
+ */
+export interface GameModeOption {
+  id: string;
+  label: string;
+}
+
+/** Engine default: free-roam only. A single entry ⇒ the menu shows no selector. */
+export const DEFAULT_MODES: readonly GameModeOption[] = [{ id: 'explore', label: 'Free Roam' }];
+
+const modeLabel = (modes: readonly GameModeOption[], id: string): string =>
+  modes.find((m) => m.id === id)?.label ?? modes[0].label;
+
 export interface MenuCallbacks {
   onResume: () => void;
   onRestart: () => void;
@@ -22,8 +37,6 @@ export interface MenuCallbacks {
 
 const PANEL_BG = 'rgba(12,16,26,.92)';
 const ACCENT = '#54a0ff';
-const MODES = ['explore', 'delivery', 'racing'] as const;
-const PLAYABLE_MODES = new Set(['explore']); // others are coming (R033)
 
 export class Menu {
   private readonly overlay: HTMLElement;
@@ -32,7 +45,7 @@ export class Menu {
   private readonly pauseActions: HTMLElement;
   private readonly seedInput: HTMLInputElement;
   private opts: GameOptions;
-  private mode = 'explore';
+  private mode: string;
   private variant: MenuVariant = 'title';
   private open = false;
 
@@ -42,9 +55,11 @@ export class Menu {
     seed: number,
     mode: string,
     private readonly cb: MenuCallbacks,
+    modes: readonly GameModeOption[] = DEFAULT_MODES,
   ) {
     this.opts = { ...opts };
-    this.mode = PLAYABLE_MODES.has(mode) ? mode : 'explore';
+    const ids = new Set(modes.map((m) => m.id));
+    this.mode = ids.has(mode) ? mode : modes[0].id;
 
     const overlay = document.createElement('div');
     overlay.id = 'menu';
@@ -68,13 +83,23 @@ export class Menu {
     // Title-only: game-mode select + seed/New Game.
     this.titleActions = document.createElement('div');
     this.titleActions.style.cssText = 'display:flex;flex-direction:column;gap:14px;margin-bottom:4px;';
-    this.titleActions.appendChild(
-      this.segmentedRow('Mode', MODES as readonly string[], this.mode, 'menu-mode', (m) => {
-        if (!PLAYABLE_MODES.has(m)) return; // disabled until built
-        this.mode = m;
-        this.cb.onModeChange(m);
-      }, (m) => PLAYABLE_MODES.has(m)),
-    );
+    // No real choice with a single mode (e.g. free-roam only) ⇒ no selector at all.
+    if (modes.length > 1) {
+      this.titleActions.appendChild(
+        this.segmentedRow(
+          'Mode',
+          modes.map((m) => m.label),
+          modeLabel(modes, this.mode),
+          'menu-mode',
+          (label) => {
+            const picked = modes.find((m) => m.label === label);
+            if (!picked) return;
+            this.mode = picked.id;
+            this.cb.onModeChange(picked.id);
+          },
+        ),
+      );
+    }
     const seedRow = document.createElement('div');
     seedRow.style.cssText = 'display:flex;align-items:center;gap:12px;font-size:13px;';
     const seedLabel = document.createElement('span');
@@ -206,7 +231,6 @@ export class Menu {
     selected: string,
     id: string,
     onPick: (choice: string) => void,
-    enabled: (choice: string) => boolean = () => true,
   ): HTMLElement {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:12px;font-size:13px;';
@@ -225,16 +249,13 @@ export class Menu {
       });
     };
     choices.forEach((choice) => {
-      const ok = enabled(choice);
       const b = document.createElement('button');
-      b.textContent = choice + (ok ? '' : ' (soon)');
+      b.textContent = choice;
       b.dataset.value = choice;
-      b.disabled = !ok;
       b.style.cssText =
         'flex:1;padding:6px 4px;border:none;border-radius:6px;text-transform:capitalize;' +
-        `font-family:inherit;font-size:12px;cursor:${ok ? 'pointer' : 'not-allowed'};opacity:${ok ? 1 : 0.4};`;
+        'font-family:inherit;font-size:12px;cursor:pointer;';
       b.addEventListener('click', () => {
-        if (!ok) return;
         selected = choice;
         paint();
         onPick(choice);
