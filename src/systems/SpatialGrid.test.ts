@@ -46,4 +46,32 @@ describe('SpatialGrid', () => {
     expect(r.x).toBeCloseTo(city.center.x, 10);
     expect(r.z).toBeCloseTo(city.center.z, 10);
   });
+
+  it('insert adds a box that resolve pushes out of; remove clears it', () => {
+    const grid = new SpatialGrid([], 4);
+    const id = grid.insert({ minX: 0, minZ: 0, maxX: 10, maxZ: 10 });
+    let r = grid.resolve(11, 5, 2); // 1 unit into the right face
+    expect(r.x).toBeCloseTo(12, 10);
+    grid.remove(id);
+    r = grid.resolve(11, 5, 2);
+    expect(r.x).toBeCloseTo(11, 10); // open space again
+  });
+
+  it('remove of a multi-cell box leaves nothing behind in any cell', () => {
+    const grid = new SpatialGrid([], 4);
+    const id = grid.insert({ minX: 0, minZ: 0, maxX: 100, maxZ: 100 }); // 25x25 cells
+    grid.remove(id);
+    const r = grid.resolve(50, 101, 2);
+    expect(r.z).toBeCloseTo(101, 10); // untouched
+  });
+
+  it('streaming churn: re-inserting after removal still resolves', () => {
+    const grid = new SpatialGrid([{ minX: -5, minZ: -5, maxX: 5, maxZ: 5 }], 4);
+    const id = grid.insert({ minX: 20, minZ: 0, maxX: 30, maxZ: 10 });
+    grid.remove(id);
+    const id2 = grid.insert({ minX: 20, minZ: 0, maxX: 30, maxZ: 10 });
+    const r = grid.resolve(19, 5, 2); // 1 unit into the left face of the re-inserted box
+    expect(r.x).toBeCloseTo(18, 10);
+    expect(id2).toBeGreaterThan(id);
+  });
 });
