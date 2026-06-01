@@ -2,16 +2,23 @@ import { describe, it, expect } from 'vitest';
 import { followDistance, lookLead, type FollowParams } from './followCam';
 import { damp } from './math';
 
-const CAR_CAM: FollowParams = { distance: 9, height: 4.2, lookHeight: 1.4, stiffness: 4, speedPull: 0.16 };
+const CAR_CAM: FollowParams = {
+  distance: 9,
+  height: 4.2,
+  lookHeight: 1.4,
+  stiffness: 4,
+  speedPull: 0.16,
+  slideSwing: 0.3,
+  maxSwing: 2,
+};
 
 /**
- * Settle the damped look-at against a car moving at constant `speed` along one axis;
- * return how far the car ends up *ahead* of where the camera aims. A positive offset
- * means the car has drifted forward (toward the top of the screen).
+ * Forward-axis framing: car moving at `speed` along heading. Returns how far it ends up
+ * *ahead* of the look-at (positive = drifted toward the top of the screen).
  */
-function framingOffset(speed: number, withLead: boolean): number {
+function forwardOffset(speed: number, withLead: boolean): number {
   const dt = 1 / 60;
-  const lead = withLead ? lookLead(CAR_CAM, speed, 0).x : 0;
+  const lead = withLead ? lookLead(CAR_CAM, speed, 0).forward : 0;
   let car = 0;
   let look = 0;
   for (let i = 0; i < 600; i++) {
@@ -21,22 +28,21 @@ function framingOffset(speed: number, withLead: boolean): number {
   return car - look;
 }
 
-/** 2D analog: a car translating at velocity (vx,vz) — e.g. a powerslide where travel
- *  diverges from heading. Returns the car's offset from the look-at on each axis. */
-function framingOffset2D(vx: number, vz: number): { dx: number; dz: number } {
+/**
+ * Lateral-axis framing during a slide: car translating sideways at `vLateral` (with some
+ * forward `vForward`). Returns the residual sideways offset of the car from centre — the
+ * powerslide "swing".
+ */
+function lateralSwing(vForward: number, vLateral: number): number {
   const dt = 1 / 60;
-  const lead = lookLead(CAR_CAM, vx, vz);
-  let cx = 0;
-  let cz = 0;
-  let lx = 0;
-  let lz = 0;
+  const lead = lookLead(CAR_CAM, vForward, vLateral).lateral;
+  let car = 0;
+  let look = 0;
   for (let i = 0; i < 600; i++) {
-    cx += vx * dt;
-    cz += vz * dt;
-    lx = damp(lx, cx + lead.x, CAR_CAM.stiffness, dt);
-    lz = damp(lz, cz + lead.z, CAR_CAM.stiffness, dt);
+    car += vLateral * dt;
+    look = damp(look, car + lead, CAR_CAM.stiffness, dt);
   }
-  return { dx: cx - lx, dz: cz - lz };
+  return car - look;
 }
 
 describe('followDistance', () => {
@@ -48,36 +54,38 @@ describe('followDistance', () => {
 });
 
 describe('lookLead', () => {
-  it('leads by the damping lag, velocity / stiffness, per axis', () => {
-    expect(lookLead(CAR_CAM, 0, 0)).toEqual({ x: 0, z: 0 });
-    expect(lookLead(CAR_CAM, 8, 0).x).toBeCloseTo(2);
-    const lead = lookLead(CAR_CAM, 8, 12); // a slide: both axes
-    expect(lead.x).toBeCloseTo(2);
-    expect(lead.z).toBeCloseTo(3);
+  it('leads the forward component fully (speed / stiffness)', () => {
+    expect(lookLead(CAR_CAM, 0, 0)).toEqual({ forward: 0, lateral: 0 });
+    expect(lookLead(CAR_CAM, 8, 0).forward).toBeCloseTo(2);
+  });
+
+  it('leaves a bounded fraction of the lateral lag as swing', () => {
+    // vLateral 8 → full lag 2; slideSwing 0.3 leaves 0.6 → lateral lead 1.4.
+    expect(lookLead(CAR_CAM, 0, 8).lateral).toBeCloseTo(2 * (1 - 0.3));
+    // A big slide: full lag 5, swing capped at maxSwing(2) → lateral lead 5 - 1.5.
+    expect(lookLead(CAR_CAM, 0, 20).lateral).toBeCloseTo(5 - Math.min(2, 5 * 0.3));
   });
 });
 
-describe('camera framing vs speed', () => {
-  it('keeps the car centred across the speed range (the fix)', () => {
+describe('camera framing', () => {
+  it('keeps the car centred along travel across the speed range (forward fix)', () => {
     for (const speed of [0, 5, 15, 30]) {
-      expect(Math.abs(framingOffset(speed, true))).toBeLessThan(0.3);
+      expect(Math.abs(forwardOffset(speed, true))).toBeLessThan(0.3);
     }
   });
 
-  it('keeps the car centred mid-powerslide, when travel diverges from heading', () => {
-    // Strong lateral component (the slide). Both axes must stay centred.
-    const { dx, dz } = framingOffset2D(18, 12);
-    expect(Math.abs(dx)).toBeLessThan(0.3);
-    expect(Math.abs(dz)).toBeLessThan(0.3);
-  });
-
   it('without the lead the car drifts forward with speed — the original bug', () => {
-    const slow = framingOffset(5, false);
-    const fast = framingOffset(30, false);
+    const slow = forwardOffset(5, false);
+    const fast = forwardOffset(30, false);
     expect(slow).toBeGreaterThan(0.5);
     expect(fast).toBeGreaterThan(slow); // drift grows with speed
-    expect(fast).toBeGreaterThan(5); // and is large at top speed
-    // the lead removes essentially all of it
-    expect(Math.abs(framingOffset(30, true))).toBeLessThan(fast / 10);
+    expect(Math.abs(forwardOffset(30, true))).toBeLessThan(fast / 10); // lead removes it
+  });
+
+  it('lets the car swing out a little in a powerslide — small + bounded, not pinned, not excessive', () => {
+    const swing = Math.abs(lateralSwing(18, 12));
+    expect(swing).toBeGreaterThan(0.05); // not pinned dead-centre
+    expect(swing).toBeLessThanOrEqual(CAR_CAM.maxSwing! + 1e-9); // never past the cap (~20% screen)
+    expect(swing).toBeLessThan(12 / CAR_CAM.stiffness); // far less than the original full swing
   });
 });

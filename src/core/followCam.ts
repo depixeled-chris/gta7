@@ -5,6 +5,8 @@ export interface FollowParams {
   lookHeight: number;
   stiffness: number; // higher = snappier
   speedPull?: number; // metres of distance pulled IN per m/s of speed (eye lag comp)
+  slideSwing?: number; // 0..1: fraction of the lateral (powerslide) lag LEFT as on-screen swing — 0 pins the car centre, 1 lets it drift fully off
+  maxSwing?: number; // hard cap (world metres) on that lateral swing — ~20% of screen at CAR_CAM
 }
 
 /**
@@ -16,15 +18,25 @@ export function followDistance(p: FollowParams, speed: number): number {
 }
 
 /**
- * A point damped at `stiffness` toward a target moving with velocity `(vx, vz)` settles
- * `(vx, vz) / stiffness` behind it. The look-at is damped toward the car, so leading it by
- * the full velocity vector cancels that lag on **both** axes — keeping the car centred even
- * mid-powerslide, when travel direction diverges from heading. (A scalar, heading-aligned
- * lead misses the lateral drift, so the car slides off-centre during a slide.) Straight-line
- * driving has `v ≈ forward·speed`, so this reduces to the original forward-only lead and
- * framing-vs-speed is unchanged.
+ * The look-at lead, split into forward (along heading) and lateral (perpendicular)
+ * components — the caller passes the car's velocity already decomposed.
+ *
+ * A point damped at `stiffness` toward a target moving at velocity v settles v/stiffness
+ * behind it. We **fully** lead the forward component (cancels the "car climbs toward the
+ * top of the screen at speed" lag), but only **partially** lead the lateral component:
+ * `slideSwing` of the lateral lag is left in (capped by `maxSwing`) so the car swings out a
+ * little during a powerslide instead of being pinned dead-centre — a small, bounded drift
+ * rather than the original full, excessive swing. With `slideSwing = 0` the car stays
+ * centred; straight-line driving (no lateral velocity) is unaffected either way.
  */
-export function lookLead(p: FollowParams, vx: number, vz: number): { x: number; z: number } {
+export function lookLead(
+  p: FollowParams,
+  vForward: number,
+  vLateral: number,
+): { forward: number; lateral: number } {
   const k = p.stiffness;
-  return { x: vx / k, z: vz / k };
+  const fullLateral = vLateral / k; // the lateral lag if left entirely uncompensated
+  const cap = p.maxSwing ?? Infinity;
+  const swing = Math.max(-cap, Math.min(cap, fullLateral * (p.slideSwing ?? 0)));
+  return { forward: vForward / k, lateral: fullLateral - swing };
 }

@@ -4,7 +4,7 @@ import { followDistance, lookLead, type FollowParams } from '../core/followCam';
 
 export type { FollowParams };
 
-export const CAR_CAM: FollowParams = { distance: 9, height: 4.2, lookHeight: 1.4, stiffness: 4, speedPull: 0.16 };
+export const CAR_CAM: FollowParams = { distance: 9, height: 4.2, lookHeight: 1.4, stiffness: 4, speedPull: 0.16, slideSwing: 0.3, maxSwing: 2 };
 export const FOOT_CAM: FollowParams = { distance: 5, height: 3, lookHeight: 1.4, stiffness: 7 };
 
 /**
@@ -36,12 +36,19 @@ export class FollowCamera {
     this.camera.position.y = damp(this.camera.position.y, p.height, p.stiffness, dt);
     this.camera.position.z = damp(this.camera.position.z, desiredZ, p.stiffness, dt);
 
-    // Lead the look-at by the velocity vector / stiffness — cancels the damping lag on
-    // both axes, so the car stays centred at speed AND mid-powerslide (travel != heading).
-    const lead = lookLead(p, vx, vz);
-    this.look.x = damp(this.look.x, x + lead.x, p.stiffness, dt);
+    // Decompose velocity into forward (along heading) + lateral (perpendicular). Lead the
+    // forward part fully (no climb-at-speed), the lateral part only partially — so the car
+    // keeps a small, bounded swing during a powerslide instead of snapping to dead-centre.
+    const rx = Math.sin(heading);
+    const rz = Math.cos(heading);
+    const vForward = vx * fx + vz * fz;
+    const vLateral = vx * rx + vz * rz;
+    const lead = lookLead(p, vForward, vLateral);
+    const leadX = fx * lead.forward + rx * lead.lateral;
+    const leadZ = fz * lead.forward + rz * lead.lateral;
+    this.look.x = damp(this.look.x, x + leadX, p.stiffness, dt);
     this.look.y = damp(this.look.y, p.lookHeight, p.stiffness, dt);
-    this.look.z = damp(this.look.z, z + lead.z, p.stiffness, dt);
+    this.look.z = damp(this.look.z, z + leadZ, p.stiffness, dt);
     this.camera.lookAt(this.look);
   }
 
