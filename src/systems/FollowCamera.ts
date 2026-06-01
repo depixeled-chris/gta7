@@ -17,10 +17,15 @@ export class FollowCamera {
 
   constructor(private readonly camera: THREE.PerspectiveCamera) {}
 
-  /** Heading convention matches the sim: forward = (cos h, 0, -sin h). */
-  update(x: number, z: number, heading: number, p: FollowParams, dt: number, speed = 0): void {
+  /**
+   * Heading convention matches the sim: forward = (cos h, 0, -sin h). The eye trails
+   * behind the *heading*; the look-at leads along the *velocity vector* `(vx, vz)` so the
+   * car stays centred even when travel diverges from heading (powerslides).
+   */
+  update(x: number, z: number, heading: number, p: FollowParams, dt: number, vx = 0, vz = 0): void {
     const fx = Math.cos(heading);
     const fz = -Math.sin(heading);
+    const speed = Math.hypot(vx, vz);
 
     // Pull the camera in as speed rises so damping lag doesn't widen the framing.
     const dist = followDistance(p, speed);
@@ -31,12 +36,12 @@ export class FollowCamera {
     this.camera.position.y = damp(this.camera.position.y, p.height, p.stiffness, dt);
     this.camera.position.z = damp(this.camera.position.z, desiredZ, p.stiffness, dt);
 
-    // Lead the look-at along travel by the damping lag, so the car stays centred
-    // instead of climbing toward the top of the screen as speed rises.
-    const lead = lookLead(p, speed);
-    this.look.x = damp(this.look.x, x + fx * lead, p.stiffness, dt);
+    // Lead the look-at by the velocity vector / stiffness — cancels the damping lag on
+    // both axes, so the car stays centred at speed AND mid-powerslide (travel != heading).
+    const lead = lookLead(p, vx, vz);
+    this.look.x = damp(this.look.x, x + lead.x, p.stiffness, dt);
     this.look.y = damp(this.look.y, p.lookHeight, p.stiffness, dt);
-    this.look.z = damp(this.look.z, z + fz * lead, p.stiffness, dt);
+    this.look.z = damp(this.look.z, z + lead.z, p.stiffness, dt);
     this.camera.lookAt(this.look);
   }
 

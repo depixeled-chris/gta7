@@ -518,7 +518,19 @@ function render(alpha: number, frameDt: number): void {
   updateStreetlightPool(active.x, active.z);
   updateHeadlights(mode === 'driving' && carPose ? carPose : null);
 
-  follow.update(active.x, active.z, active.heading, mode === 'driving' ? CAR_CAM : FOOT_CAM, frameDt, Math.abs(active.speed));
+  // Camera leads by the actual velocity vector so the car stays centred mid-powerslide
+  // (world velocity diverges from heading); on foot, velocity is along facing.
+  let camVx: number;
+  let camVz: number;
+  if (mode === 'driving' && carPose) {
+    const v = vehicles.playerVelocity();
+    camVx = v.vx;
+    camVz = v.vz;
+  } else {
+    camVx = Math.cos(ah) * player.speed;
+    camVz = -Math.sin(ah) * player.speed;
+  }
+  follow.update(active.x, active.z, active.heading, mode === 'driving' ? CAR_CAM : FOOT_CAM, frameDt, camVx, camVz);
 
   const speedMph = mode === 'driving' ? toMph(vehicles.playerForwardSpeed()) : toMph(player.speed);
   // The health bar reads car integrity while driving, avatar health on foot.

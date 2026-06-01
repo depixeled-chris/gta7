@@ -11,7 +11,7 @@ const CAR_CAM: FollowParams = { distance: 9, height: 4.2, lookHeight: 1.4, stiff
  */
 function framingOffset(speed: number, withLead: boolean): number {
   const dt = 1 / 60;
-  const lead = withLead ? lookLead(CAR_CAM, speed) : 0;
+  const lead = withLead ? lookLead(CAR_CAM, speed, 0).x : 0;
   let car = 0;
   let look = 0;
   for (let i = 0; i < 600; i++) {
@@ -19,6 +19,24 @@ function framingOffset(speed: number, withLead: boolean): number {
     look = damp(look, car + lead, CAR_CAM.stiffness, dt);
   }
   return car - look;
+}
+
+/** 2D analog: a car translating at velocity (vx,vz) — e.g. a powerslide where travel
+ *  diverges from heading. Returns the car's offset from the look-at on each axis. */
+function framingOffset2D(vx: number, vz: number): { dx: number; dz: number } {
+  const dt = 1 / 60;
+  const lead = lookLead(CAR_CAM, vx, vz);
+  let cx = 0;
+  let cz = 0;
+  let lx = 0;
+  let lz = 0;
+  for (let i = 0; i < 600; i++) {
+    cx += vx * dt;
+    cz += vz * dt;
+    lx = damp(lx, cx + lead.x, CAR_CAM.stiffness, dt);
+    lz = damp(lz, cz + lead.z, CAR_CAM.stiffness, dt);
+  }
+  return { dx: cx - lx, dz: cz - lz };
 }
 
 describe('followDistance', () => {
@@ -30,9 +48,12 @@ describe('followDistance', () => {
 });
 
 describe('lookLead', () => {
-  it('leads by the damping lag, speed / stiffness', () => {
-    expect(lookLead(CAR_CAM, 0)).toBe(0);
-    expect(lookLead(CAR_CAM, 8)).toBeCloseTo(2);
+  it('leads by the damping lag, velocity / stiffness, per axis', () => {
+    expect(lookLead(CAR_CAM, 0, 0)).toEqual({ x: 0, z: 0 });
+    expect(lookLead(CAR_CAM, 8, 0).x).toBeCloseTo(2);
+    const lead = lookLead(CAR_CAM, 8, 12); // a slide: both axes
+    expect(lead.x).toBeCloseTo(2);
+    expect(lead.z).toBeCloseTo(3);
   });
 });
 
@@ -41,6 +62,13 @@ describe('camera framing vs speed', () => {
     for (const speed of [0, 5, 15, 30]) {
       expect(Math.abs(framingOffset(speed, true))).toBeLessThan(0.3);
     }
+  });
+
+  it('keeps the car centred mid-powerslide, when travel diverges from heading', () => {
+    // Strong lateral component (the slide). Both axes must stay centred.
+    const { dx, dz } = framingOffset2D(18, 12);
+    expect(Math.abs(dx)).toBeLessThan(0.3);
+    expect(Math.abs(dz)).toBeLessThan(0.3);
   });
 
   it('without the lead the car drifts forward with speed — the original bug', () => {

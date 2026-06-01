@@ -16,12 +16,15 @@ export function followDistance(p: FollowParams, speed: number): number {
 }
 
 /**
- * A point damped toward a target moving at `speed` settles `speed / stiffness`
- * behind it. The look-at point is damped toward the car, so with no compensation it
- * lags by that much and the car climbs toward the top of the screen as speed rises.
- * Leading the look-at forward by the lag cancels it, keeping the car framed
- * consistently — the look-at analog of `speedPull` for the eye.
+ * A point damped at `stiffness` toward a target moving with velocity `(vx, vz)` settles
+ * `(vx, vz) / stiffness` behind it. The look-at is damped toward the car, so leading it by
+ * the full velocity vector cancels that lag on **both** axes — keeping the car centred even
+ * mid-powerslide, when travel direction diverges from heading. (A scalar, heading-aligned
+ * lead misses the lateral drift, so the car slides off-centre during a slide.) Straight-line
+ * driving has `v ≈ forward·speed`, so this reduces to the original forward-only lead and
+ * framing-vs-speed is unchanged.
  */
-export function lookLead(p: FollowParams, speed: number): number {
-  return speed / p.stiffness;
+export function lookLead(p: FollowParams, vx: number, vz: number): { x: number; z: number } {
+  const k = p.stiffness;
+  return { x: vx / k, z: vz / k };
 }
